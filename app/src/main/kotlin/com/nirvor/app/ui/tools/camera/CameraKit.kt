@@ -249,7 +249,11 @@ fun decodeUpright(file: File, maxSide: Int): Bitmap? {
 fun rotate(bmp: Bitmap, degrees: Float): Bitmap {
     if (degrees == 0f) return bmp
     val m = Matrix().apply { postRotate(degrees) }
-    return Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
+    val rotated = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
+    if (rotated != bmp) {
+        bmp.recycle()
+    }
+    return rotated
 }
 
 /** Loads a picked image (gallery / files), upright and at most [maxSide] px. */

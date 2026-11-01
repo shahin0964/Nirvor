@@ -16,8 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -205,7 +205,7 @@ fun QazaScreen(onBack: () -> Unit) {
     val app = context.applicationContext as NirvorApplication
     val dao = app.db.islamicDao()
     val scope = rememberCoroutineScope()
-    val rows by dao.qaza().collectAsState(emptyList())
+    val rows by dao.qaza().collectAsStateWithLifecycle(emptyList())
     var days by remember { mutableStateOf("") }
     fun row(i: Int) = rows.firstOrNull { it.prayer == i } ?: QazaEntity(i)
     fun put(q: QazaEntity) {

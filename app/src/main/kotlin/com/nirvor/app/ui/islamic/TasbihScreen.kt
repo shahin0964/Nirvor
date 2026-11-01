@@ -33,7 +33,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +40,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.SupervisorJob
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -87,6 +88,8 @@ private class Pick(val key: String, val arabic: String, val bn: String, val mean
 
 private fun Dhikr.pick() = Pick(key, arabic, bn, meaning, target)
 
+private val tasbihFlushScope = kotlinx.coroutines.CoroutineScope(SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+
 /** Digital tasbih: tap anywhere on the big circle, a ring fills to the target, counts are kept per day. */
 @Composable
 fun TasbihScreen(onBack: () -> Unit) {
@@ -98,8 +101,8 @@ fun TasbihScreen(onBack: () -> Unit) {
     val sp = remember { toolPrefs(context) }
     val scope = rememberCoroutineScope()
     val today = remember { LocalDate.now().toEpochDay() }
-    val customs by dao.customDhikr().collectAsState(emptyList())
-    val logs by dao.dhikrLogsFrom(today - 6).collectAsState(emptyList())
+    val customs by dao.customDhikr().collectAsStateWithLifecycle(emptyList())
+    val logs by dao.dhikrLogsFrom(today - 6).collectAsStateWithLifecycle(emptyList())
 
     var key by rememberSaveable { mutableStateOf(sp.getString("tasbih_key", Dhikrs.presets[0].key) ?: Dhikrs.presets[0].key) }
     var count by rememberSaveable { mutableIntStateOf(0) }
@@ -138,7 +141,7 @@ fun TasbihScreen(onBack: () -> Unit) {
             val add = unsaved
             unsaved = 0
             if (add > 0) {
-                CoroutineScope(Dispatchers.IO).launch {
+                tasbihFlushScope.launch {
                     val old = dao.dhikrLog(today, logKey)?.count ?: 0
                     dao.putDhikrLog(DhikrLogEntity(today, logKey, old + add))
                 }

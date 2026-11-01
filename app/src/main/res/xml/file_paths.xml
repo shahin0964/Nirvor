@@ -8,7 +8,7 @@
         path="." />
     <files-path
         name="internal"
-        path="." />
+        path="Nirvor/" />
     <cache-path
         name="cache"
         path="." />

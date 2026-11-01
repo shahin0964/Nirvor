@@ -32,12 +32,12 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -136,8 +136,8 @@ fun PrayerScreen(onBack: () -> Unit, onOpen: (IslamicTool) -> Unit, onLocation: 
     val place = remember { prefs.place() }
     val times = remember(day, version, place) { prefs.times(date) }
     val pn = remember(now / 60_000, version, place) { prayerNow(prefs, now) }
-    val logs by app.db.islamicDao().prayerLogsFrom(today.toEpochDay() - 6).collectAsState(emptyList())
-    val qaza by app.db.islamicDao().qaza().collectAsState(emptyList())
+    val logs by app.db.islamicDao().prayerLogsFrom(today.toEpochDay() - 6).collectAsStateWithLifecycle(emptyList())
+    val qaza by app.db.islamicDao().qaza().collectAsStateWithLifecycle(emptyList())
 
     ToolScaffold(
         "নামাজের সময়",

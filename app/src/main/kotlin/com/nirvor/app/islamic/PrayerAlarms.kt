@@ -196,7 +196,10 @@ class PrayerReceiver : BroadcastReceiver() {
 /** The clock or time zone changed: prayer alarms are booked again. */
 class PrayerClockReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        PrayerAlarms.reschedule(context)
+        val action = intent.action
+        if (action == Intent.ACTION_TIME_SET || action == Intent.ACTION_TIMEZONE_CHANGED) {
+            PrayerAlarms.reschedule(context)
+        }
     }
 }
 

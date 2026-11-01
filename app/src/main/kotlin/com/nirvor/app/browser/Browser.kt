@@ -427,7 +427,7 @@ object Browser {
             layoutAlgorithm = if (BrowserSettings.textReflow) WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING else WebSettings.LayoutAlgorithm.NORMAL
             defaultTextEncodingName = BrowserSettings.textEncoding
             userAgentString = userAgent(tab)
-            allowFileAccess = true
+            allowFileAccess = false
             setGeolocationEnabled(true)
             if (Build.VERSION.SDK_INT >= 26) safeBrowsingEnabled = BrowserSettings.safeBrowsing
             if (tab.incognito && !WebViewFeature.isFeatureSupported(WebViewFeature.MULTI_PROFILE)) {
@@ -729,7 +729,14 @@ object Browser {
                 if (fallback != null) view?.loadUrl(fallback)
                 tab.blocked++
             }
-            "allow" -> openExternal(intent, fallback, view)
+            "allow" -> {
+                if (intent != null) {
+                    intent.addCategory(Intent.CATEGORY_BROWSABLE)
+                    intent.component = null
+                    intent.selector = null
+                }
+                openExternal(intent, fallback, view)
+            }
             else -> {
                 if (intent != null) {
                     intent.addCategory(Intent.CATEGORY_BROWSABLE)
@@ -870,7 +877,7 @@ object Browser {
     }
 
     internal fun onSsl(handler: SslErrorHandler) {
-        if (BrowserSettings.ignoreSslErrors) handler.proceed() else handler.cancel()
+        handler.cancel()
     }
 
     internal fun mainPost(block: () -> Unit) {

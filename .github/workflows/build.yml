@@ -17,11 +17,30 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
+      - name: Setup Keystore
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/release.keystore"
+
+      - name: Build APKs
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           set -eo pipefail
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace 2>&1 | tee build_log.txt
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            export KEYSTORE_FILE="$GITHUB_WORKSPACE/release.keystore"
+            echo "Building Debug and Signed Release APKs..."
+            ./gradlew assembleDebug assembleRelease --stacktrace 2>&1 | tee build_log.txt
+          else
+            echo "Building Debug APK (Release keystore secret not set)..."
+            ./gradlew assembleDebug --stacktrace 2>&1 | tee build_log.txt
+          fi
 
       - name: Output errors as annotations if failed
         if: failure()
@@ -32,7 +51,17 @@ jobs:
           done
           exit 1
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
         with:
           name: nirvor-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+
+      - name: Upload Release APK
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nirvor-release-apk
+          path: app/build/outputs/apk/release/*.apk

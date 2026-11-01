@@ -197,7 +197,7 @@ class PrayerReceiver : BroadcastReceiver() {
 class PrayerClockReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action
-        if (action == Intent.ACTION_TIME_SET || action == Intent.ACTION_TIMEZONE_CHANGED) {
+        if (action == Intent.ACTION_TIME_CHANGED || action == Intent.ACTION_TIMEZONE_CHANGED) {
             PrayerAlarms.reschedule(context)
         }
     }

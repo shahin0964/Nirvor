@@ -97,58 +97,58 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val todayTasks: StateFlow<List<TaskEntity>> = today
         .flatMapLatest { db.taskDao().forDay(it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     val allTasks: StateFlow<List<TaskEntity>> = db.taskDao().all()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     val reminders: StateFlow<List<ReminderEntity>> = db.reminderDao().all()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     val upcoming: StateFlow<List<UpcomingReminder>> = combine(reminders, now) { list, n ->
         list.mapNotNull { r -> ReminderScheduler.nextTrigger(r, n)?.let { UpcomingReminder(r, it) } }
             .sortedBy { it.at }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     val todayExpenses: StateFlow<List<ExpenseEntity>> = today
         .flatMapLatest { db.expenseDao().forDay(it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     val allExpenses: StateFlow<List<ExpenseEntity>> = db.expenseDao().all()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     val allIncomes: StateFlow<List<IncomeEntity>> = db.incomeDao().all()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     /** Incomes added automatically every month (salary etc.). */
     val incomeRepeats: StateFlow<List<IncomeRepeatEntity>> = db.incomeDao().repeats()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     /** Categories the user made (both expense and income). */
     val customCategories: StateFlow<List<MoneyCategory>> = db.moneyCategoryDao().all()
         .map { list -> list.map { it.toCategory() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     // দেনা-পাওনা and কিস্তি
     val ledgerPeople: StateFlow<List<LedgerPersonEntity>> = db.ledgerDao().people()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     val ledgerEntries: StateFlow<List<LedgerEntryEntity>> = db.ledgerDao().entries()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     val installments: StateFlow<List<InstallmentEntity>> = db.installmentDao().all()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     val installmentPayments: StateFlow<List<InstallmentPaymentEntity>> = db.installmentDao().payments()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     val habits: StateFlow<List<HabitEntity>> = db.habitDao().habits()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     val doneHabitIds: StateFlow<Set<Long>> = today
         .flatMapLatest { db.habitDao().logsForDay(it) }
         .map { logs -> logs.map { it.habitId }.toSet() }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptySet())
 
     /** Days in a row (ending today or yesterday) on which at least one habit was done. */
     val streak: StateFlow<Int> = combine(db.habitDao().logDays(), today) { days, t ->
@@ -160,10 +160,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             d--
         }
         n
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 0)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), 0)
 
     val notes: StateFlow<List<NoteEntity>> = db.noteDao().all()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
     private val _name = MutableStateFlow(prefs.name)
     val name: StateFlow<String> = _name.asStateFlow()
@@ -194,7 +194,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         SkyInputs(c?.first, c?.second, preview?.let { SceneWeather.preview(it) } ?: w)
     }.stateIn(
         viewModelScope,
-        SharingStarted.WhileSubscribed(5_000),
+        SharingStarted.WhileSubscribed(5_000L),
         SkyInputs(_skyCoords.value?.first, _skyCoords.value?.second, _skyWeather.value),
     )
 

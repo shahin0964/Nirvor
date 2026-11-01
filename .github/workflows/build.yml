@@ -19,6 +19,7 @@ jobs:
 
       - name: Build debug APK
         run: |
+          set -eo pipefail
           chmod +x gradlew
           ./gradlew assembleDebug --stacktrace 2>&1 | tee build_log.txt
 

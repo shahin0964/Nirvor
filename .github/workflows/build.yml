@@ -18,9 +18,20 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build debug APK
+        id: gradle_build
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee build_log.txt
+        continue-on-error: true
+
+      - name: Output errors as annotations if failed
+        if: steps.gradle_build.outcome != 'success'
+        run: |
+          echo "::error::Build failed! Details:"
+          grep -E '(e: |FAILURE:|BUILD FAILED|\* What went wrong:)' build_log.txt | while read -r line; do
+            echo "::error::$line"
+          done
+          exit 1
 
       - uses: actions/upload-artifact@v4
         with:

@@ -20,12 +20,15 @@ android {
     namespace = "com.nirvor.app"
     compileSdk = 35
 
+    val appVersionCode = (project.findProperty("versionCode") as? String)?.toIntOrNull() ?: 13
+    val appVersionName = (project.findProperty("versionName") as? String) ?: "2.1.1"
+
     defaultConfig {
         applicationId = "com.nirvor.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "2.1.1"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         // The download engine (yt-dlp + Python + FFmpeg) ships native code; real phones are ARM.
         ndk {
@@ -35,12 +38,19 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystorePath = System.getenv("KEYSTORE_FILE")
-            if (!keystorePath.isNullOrBlank() && file(keystorePath).exists()) {
-                storeFile = file(keystorePath)
-                storePassword = System.getenv("KEYSTORE_PASSWORD")
-                keyAlias = System.getenv("KEY_ALIAS")
-                keyPassword = System.getenv("KEY_PASSWORD")
+            val keystoreFile = listOf(
+                file("release.jks"),
+                file("../release.jks"),
+                file("release.keystore"),
+                file("../release.keystore"),
+                System.getenv("KEYSTORE_FILE")?.let { file(it) }
+            ).firstOrNull { it != null && it.exists() }
+
+            if (keystoreFile != null) {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "my-alias"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
             }
         }
     }

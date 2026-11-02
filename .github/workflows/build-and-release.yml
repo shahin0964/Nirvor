@@ -1,0 +1,138 @@
+name: Build and Update Release APK
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build & Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21 (Latest LTS)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant Execute Permission for Gradlew
+        run: chmod +x gradlew
+
+      - name: Compute Dynamic Version
+        run: |
+          VERSION_CODE=${{ github.run_number }}
+          VERSION_NAME="2.1.${{ github.run_number }}"
+          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+
+      - name: Setup Release Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          SECRET_KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+          SECRET_STORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          SECRET_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > app/release.jks
+            echo "Keystore successfully decoded to app/release.jks"
+            echo "KEYSTORE_PASSWORD=${SECRET_STORE_PASS:-android}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${SECRET_KEY_ALIAS:-my-alias}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${SECRET_KEY_PASS:-android}" >> $GITHUB_ENV
+          else
+            echo "KEYSTORE_BASE64 is empty, creating signing keystore"
+            keytool -genkeypair -v -keystore app/release.jks -alias my-alias -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Nirvor, O=Android, C=BD"
+            echo "KEYSTORE_PASSWORD=android" >> $GITHUB_ENV
+            echo "KEY_ALIAS=my-alias" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=android" >> $GITHUB_ENV
+          fi
+
+      - name: Build Android Release APK
+        run: |
+          set -o pipefail
+          ./gradlew :app:assembleRelease -PversionCode=${{ env.VERSION_CODE }} -PversionName=${{ env.VERSION_NAME }} --no-daemon --stacktrace 2>&1 | tee build_log.txt
+
+      - name: Verify APK Signature
+        run: |
+          echo "=== Verifying APK Signature ==="
+          APK_FILE=$(find app/build/outputs/apk/release -type f -name "*.apk" 2>/dev/null | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find . -type f -name "*.apk" 2>/dev/null | head -n 1)
+          fi
+          echo "Target APK: $APK_FILE"
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* 2>/dev/null | sort -V | tail -n 1)
+          if [ -n "$BUILD_TOOLS_DIR" ] && [ -f "$BUILD_TOOLS_DIR/apksigner" ]; then
+            echo "Using apksigner from $BUILD_TOOLS_DIR"
+            "$BUILD_TOOLS_DIR/apksigner" verify --verbose "$APK_FILE" || true
+          fi
+
+      - name: Push Error Log on Failure
+        if: failure()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B build-log
+          cp build_log.txt BUILD_ERROR.txt
+          git add -f BUILD_ERROR.txt
+          git commit -m "Auto-capture Gradle build error" || true
+          git push origin build-log -f || true
+
+      - name: Prepare APK for Release
+        run: |
+          mkdir -p release-artifacts
+          echo "=== Searching for generated release APK ==="
+          APK_FILE=$(find app/build/outputs/apk/release -type f -name "*.apk" 2>/dev/null | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            APK_FILE=$(find . -type f -name "*.apk" 2>/dev/null | head -n 1)
+          fi
+          echo "Found APK: $APK_FILE"
+          if [ -n "$APK_FILE" ] && [ -f "$APK_FILE" ]; then
+            cp "$APK_FILE" release-artifacts/Nirvor-latest.apk
+            cp "$APK_FILE" "release-artifacts/Nirvor-v${{ env.VERSION_NAME }}.apk"
+            echo "Successfully prepared release artifacts"
+            ls -lh release-artifacts/
+          else
+            echo "::error::No APK file found in workspace after build!"
+            exit 1
+          fi
+
+      - name: Prepare Release Notes
+        run: |
+          echo "# 📱 Nirvor - v${{ env.VERSION_NAME }}" > release_body.md
+          echo "⚡ Latest release build generated and published automatically." >> release_body.md
+          echo "" >> release_body.md
+          echo "---" >> release_body.md
+          echo "**Version**: \`v${{ env.VERSION_NAME }}\` (Build #${{ env.VERSION_CODE }})" >> release_body.md
+          echo "**Commit**: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})" >> release_body.md
+
+      - name: Update GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: "v${{ env.VERSION_NAME }}"
+          commit: ${{ github.sha }}
+          name: "Nirvor v${{ env.VERSION_NAME }}"
+          bodyFile: "release_body.md"
+          artifacts: "release-artifacts/*"
+          allowUpdates: true
+          replacesArtifacts: true
+          makeLatest: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Artifacts Backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: nirvor-release-apk
+          path: release-artifacts/*

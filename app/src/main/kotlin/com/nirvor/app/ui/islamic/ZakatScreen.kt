@@ -93,7 +93,7 @@ fun ZakatScreen(onBack: () -> Unit) {
 
     ToolScaffold(
         title = "যাকাত ক্যালকুলেটর",
-        sub = "ইসলামিক শরিয়াহ অনুযায়ী নির্ভুল যাকাত ও নিসাব হিসাব",
+        subtitle = "ইসলামিক শরিয়াহ অনুযায়ী নির্ভুল যাকাত ও নিসাব হিসাব",
         onBack = onBack,
     ) {
         // Result Summary Header

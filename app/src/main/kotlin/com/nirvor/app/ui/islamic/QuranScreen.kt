@@ -123,7 +123,7 @@ fun QuranScreen(onBack: () -> Unit) {
 
     ToolScaffold(
         title = "পবিত্র কুরআন",
-        sub = "১১৪টি সূরা, আরবি তিলাওয়াত ও বাংলা অনুবাদ",
+        subtitle = "১১৪টি সূরা, আরবি তিলাওয়াত ও বাংলা অনুবাদ",
         onBack = onBack,
     ) {
         // Last Read Banner
@@ -375,7 +375,7 @@ private fun SurahDetailScreen(
 
     ToolScaffold(
         title = "সূরা ${surah.bn}",
-        sub = "${surah.meaning} · ${surah.type.bn} · ${bnNum(surah.verses)} আয়াত",
+        subtitle = "${surah.meaning} · ${surah.type.bn} · ${bnNum(surah.verses)} আয়াত",
         onBack = {
             player?.stop()
             onBack()

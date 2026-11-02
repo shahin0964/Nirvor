@@ -99,7 +99,7 @@ fun DuaScreen(onBack: () -> Unit) {
 
     ToolScaffold(
         title = "দোয়া ও আযকার",
-        sub = "হিসনুল মুসলিম থেকে দৈনন্দিন সহীহ দোয়া ও ফজিলত",
+        subtitle = "হিসনুল মুসলিম থেকে দৈনন্দিন সহীহ দোয়া ও ফজিলত",
         onBack = onBack,
     ) {
         // Search Field

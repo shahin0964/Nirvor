@@ -76,7 +76,7 @@ fun RamadanScreen(onBack: () -> Unit, onLocation: () -> Unit) {
 
     ToolScaffold(
         title = "পবিত্র মাহে রমজান",
-        sub = "সাহরি-ইফতারের সময়সূচি, রোজা ট্র্যাকার ও আমল",
+        subtitle = "সাহরি-ইফতারের সময়সূচি, রোজা ট্র্যাকার ও আমল",
         onBack = onBack,
     ) {
         // Hero Card

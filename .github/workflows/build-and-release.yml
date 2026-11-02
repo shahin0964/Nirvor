@@ -131,8 +131,3 @@ jobs:
           makeLatest: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload Artifacts Backup
-        uses: actions/upload-artifact@v4
-        with:
-          name: nirvor-release-apk
-          path: release-artifacts/*

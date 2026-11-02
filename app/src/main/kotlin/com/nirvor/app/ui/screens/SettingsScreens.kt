@@ -65,6 +65,7 @@ fun SettingsScreen(
     onPermissions: () -> Unit,
     onDownloads: () -> Unit,
     onAbout: () -> Unit,
+    onUpdate: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val name by vm.name.collectAsStateWithLifecycle()
@@ -110,6 +111,14 @@ fun SettingsScreen(
         }
 
         item { SectionLabel("অন্যান্য") }
+        item {
+            NavRow(
+                Glyph.Refresh, Color(0xFF2563EB), Color(0xFF1D4ED8),
+                "অ্যাপ আপডেট (OTA)",
+                "নতুন আপডেট ডাউনলোড ও রিলিজ নোট",
+                onUpdate,
+            )
+        }
         item {
             NavRow(
                 Glyph.Info, C.TaskGreenA, C.TaskGreenB,
@@ -289,7 +298,7 @@ private fun ChoiceRow(selected: Boolean, title: String, subtitle: String, onClic
 // ---------------------------------------------------------------- Settings → অ্যাপ সম্পর্কে
 
 @Composable
-fun AboutScreen(bottomPadding: Dp, onBack: () -> Unit) {
+fun AboutScreen(bottomPadding: Dp, onBack: () -> Unit, onUpdate: () -> Unit = {}) {
     val context = LocalContext.current
     val version = appVersion(context)
 
@@ -303,6 +312,20 @@ fun AboutScreen(bottomPadding: Dp, onBack: () -> Unit) {
                     RText("নির্ভর", 20, FontWeight.Normal, C.StatLabelBn)
                     Spacer(Modifier.height(6.r))
                     RText("ভার্সন $version", 18, FontWeight.Normal, C.Hint)
+                    Spacer(Modifier.height(14.r))
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(Color(0xFFDBEAFE))
+                            .clickable(onClick = onUpdate)
+                            .padding(horizontal = 20.r, vertical = 9.r),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            GlyphIcon(Glyph.Refresh, Color(0xFF1D4ED8), Modifier.size(18.r), strokeWidth = 2f)
+                            Spacer(Modifier.width(8.r))
+                            RText("আপডেট চেক করুন (OTA)", 15, FontWeight.SemiBold, Color(0xFF1D4ED8))
+                        }
+                    }
                 }
             }
         }

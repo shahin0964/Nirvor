@@ -20,8 +20,8 @@ android {
     namespace = "com.nirvor.app"
     compileSdk = 35
 
-    val appVersionCode = (project.findProperty("versionCode") as? String)?.toIntOrNull() ?: 13
-    val appVersionName = (project.findProperty("versionName") as? String) ?: "2.1.1"
+    val appVersionCode = (project.findProperty("versionCode") as? String)?.toIntOrNull() ?: 14
+    val appVersionName = (project.findProperty("versionName") as? String) ?: "2.1.4"
 
     defaultConfig {
         applicationId = "com.nirvor.app"

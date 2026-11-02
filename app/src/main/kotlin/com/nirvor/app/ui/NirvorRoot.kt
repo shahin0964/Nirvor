@@ -60,6 +60,7 @@ import com.nirvor.app.ui.screens.NotesScreen
 import com.nirvor.app.ui.screens.ProfileScreen
 import com.nirvor.app.ui.screens.RemindersScreen
 import com.nirvor.app.ui.screens.AboutScreen
+import com.nirvor.app.ui.screens.AppUpdateScreen
 import com.nirvor.app.ui.screens.DownloadSettingsScreen
 import com.nirvor.app.ui.screens.PermissionsScreen
 import com.nirvor.app.ui.screens.SettingsScreen
@@ -99,7 +100,7 @@ import com.nirvor.app.ui.theme.C
 
 /** Full-screen pages opened on top of the tabs. */
 enum class Page {
-    Reminders, Habits, Notes, Profile, Settings, Permissions, WeatherSettings, About,
+    Reminders, Habits, Notes, Profile, Settings, Permissions, WeatherSettings, About, AppUpdate,
     Downloads, Browser, DownloadSettings,
     Ledger, LedgerPerson, Installment,
     ToolBox, Tool,
@@ -310,6 +311,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                         onReminders = { openPage(Page.Reminders) },
                         onHabits = { openPage(Page.Habits) },
                         onNotes = { openPage(Page.Notes) },
+                        onUpdate = { openPage(Page.AppUpdate) },
                     )
                 }
 
@@ -426,11 +428,13 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                     onPermissions = { openPage(Page.Permissions) },
                     onDownloads = { openPage(Page.DownloadSettings) },
                     onAbout = { openPage(Page.About) },
+                    onUpdate = { openPage(Page.AppUpdate) },
                 )
 
                 Page.Permissions -> PermissionsScreen(vm, listBottom, onBack = { goBack() })
                 Page.WeatherSettings -> WeatherSettingsScreen(vm, listBottom, onBack = { goBack() })
-                Page.About -> AboutScreen(listBottom, onBack = { goBack() })
+                Page.About -> AboutScreen(listBottom, onBack = { goBack() }, onUpdate = { openPage(Page.AppUpdate) })
+                Page.AppUpdate -> AppUpdateScreen(listBottom, onBack = { goBack() })
 
                 Page.Downloads -> DownloadsScreen(
                     bottomPadding = listBottom,

@@ -71,8 +71,9 @@ fun MoreScreen(
     onReminders: () -> Unit,
     onHabits: () -> Unit,
     onNotes: () -> Unit,
+    onUpdate: () -> Unit,
 ) {
-    PageScaffold("More", "ফিচার", onBack = null, bottomPadding = bottomPadding) {
+    PageScaffold("More", "ফিচার ও সেটিংস", onBack = null, bottomPadding = bottomPadding) {
         item { SectionLabel("ফিচার") }
         item { MenuRow(Glyph.Download, C.FabA, C.FabB, "Download Manager", "ডাউনলোড ম্যানেজার", onDownloads) }
         item { MenuRow(Glyph.Swap, C.OrangeA, C.OrangeB, "Lend & Borrow", "দেনা-পাওনা ও কিস্তি", onLedger) }
@@ -81,6 +82,9 @@ fun MoreScreen(
         item { MenuRow(Glyph.Bell, C.PurpleA, C.PurpleB, "Upcoming Reminders", "রিমাইন্ডার", onReminders) }
         item { MenuRow(Glyph.Target, C.HabGreenA, C.HabGreenB, "Today's Habit", "হ্যাবিট", onHabits) }
         item { MenuRow(Glyph.Note, C.NotesIconA, C.NotesIconB, "Quick Notes", "নোট", onNotes) }
+
+        item { SectionLabel("অ্যাপ ও সিস্টেম") }
+        item { MenuRow(Glyph.Refresh, Color(0xFF2563EB), Color(0xFF1D4ED8), "App Update (OTA)", "নতুন ভার্সন আপডেট ও রিলিজ নোট", onUpdate) }
     }
 }
 

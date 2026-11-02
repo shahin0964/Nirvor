@@ -13,6 +13,7 @@ import com.nirvor.app.ui.AppNav
 import com.nirvor.app.ui.NavRequest
 import com.nirvor.app.ui.NirvorRoot
 import com.nirvor.app.ui.ProvideRef
+import com.nirvor.app.ui.display.RefreshRateManager
 import com.nirvor.app.ui.theme.NirvorTheme
 import kotlinx.coroutines.launch
 
@@ -32,6 +33,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        RefreshRateManager.applyOptimalRefreshRate(this)
         if (savedInstanceState == null) handle(intent)
         lifecycleScope.launch { Downloads.recover(this@MainActivity) }
         setContent {
@@ -41,6 +43,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        RefreshRateManager.applyOptimalRefreshRate(this)
     }
 
     override fun onNewIntent(intent: Intent) {

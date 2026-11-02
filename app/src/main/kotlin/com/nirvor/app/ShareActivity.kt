@@ -46,6 +46,7 @@ class ShareActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        com.nirvor.app.ui.display.RefreshRateManager.applyOptimalRefreshRate(this)
         val text = intent?.getStringExtra(Intent.EXTRA_TEXT) ?: intent?.dataString
         val url = Analyzer.extractUrl(text)
         setContent {
@@ -55,6 +56,11 @@ class ShareActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        com.nirvor.app.ui.display.RefreshRateManager.applyOptimalRefreshRate(this)
     }
 
     private fun openInBrowser(url: String) {

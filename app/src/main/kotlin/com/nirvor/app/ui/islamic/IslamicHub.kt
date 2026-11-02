@@ -43,10 +43,10 @@ enum class IslamicTool(val emoji: String, val title: String, val sub: String, va
     Qibla("🧭", "কিবলা", "কম্পাস ও ক্যামেরা", true),
     Tasbih("📿", "তাসবিহ", "ট্যাপ করে গুনুন", true),
     Qaza("📋", "কাজা নামাজ", "বাকি নামাজের হিসাব", true),
-    Quran("📖", "কুরআন", "পড়া, অনুবাদ, তিলাওয়াত", false),
-    Dua("🤲", "দোয়া ও আযকার", "সকাল-সন্ধ্যা ও প্রতিদিনের", false),
-    Ramadan("🌙", "রমজান", "সাহরি-ইফতার, রোজা", false),
-    Zakat("💰", "যাকাত", "হিসাব ও নিসাব", false),
+    Quran("📖", "কুরআন", "পড়া, অনুবাদ, তিলাওয়াত", true),
+    Dua("🤲", "দোয়া ও আযকার", "সকাল-সন্ধ্যা ও প্রতিদিনের", true),
+    Ramadan("🌙", "রমজান", "সাহরি-ইফতার, রোজা", true),
+    Zakat("💰", "যাকাত", "হিসাব ও নিসাব", true),
     NamazSettings("⚙️", "নামাজের সময়ের নিয়ম", "", true);
 
     companion object {
@@ -194,8 +194,9 @@ fun IslamicHost(tool: IslamicTool, onBack: () -> Unit, onOpen: (IslamicTool) -> 
         IslamicTool.Qibla -> QiblaScreen(onBack, onLocation)
         IslamicTool.Tasbih -> TasbihScreen(onBack)
         IslamicTool.Qaza -> QazaScreen(onBack)
-        else -> ToolScaffold(tool.title, tool.sub, onBack) {
-            RText("${tool.emoji} ${tool.title} পরের আপডেটে আসছে।", 20, FontWeight.Normal, C.Hint, maxLines = 2)
-        }
+        IslamicTool.Quran -> QuranScreen(onBack)
+        IslamicTool.Dua -> DuaScreen(onBack)
+        IslamicTool.Ramadan -> RamadanScreen(onBack, onLocation)
+        IslamicTool.Zakat -> ZakatScreen(onBack)
     }
 }

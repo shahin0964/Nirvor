@@ -194,7 +194,7 @@ object RuqyahData {
             title = "ওয়াসওয়াসা ও শয়তানের কুমন্ত্রণা থেকে মুক্তি",
             arabicTitle = "رقية طرد الوسواس والشكوك",
             reciter = "শায়খ সউদ আশ-শুরাইম",
-            reciterArabic = "سعود الشريم"
+            reciterArabic = "سعود الشريم",
             category = RuqyahCategory.MentalPeace,
             durationText = "৩৩ মিনিট",
             audioUrl = "https://server8.mp3quran.net/download/ruqyah/Shuraim.mp3",

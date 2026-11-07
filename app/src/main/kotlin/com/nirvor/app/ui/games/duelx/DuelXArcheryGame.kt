@@ -233,7 +233,7 @@ fun DuelXArcheryGame(
                 }
 
                 // Game Over Overlay
-                AnimatedVisibility(visible = isGameOver, enter = fadeIn() + scaleIn()) {
+                if (isGameOver) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()

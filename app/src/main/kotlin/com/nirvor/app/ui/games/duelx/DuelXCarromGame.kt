@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -577,7 +578,7 @@ fun DuelXCarromGame(
             }
 
             // In-Game Menu Modal (Matches video 00:44 - 00:45)
-            AnimatedVisibility(visible = showMenu, enter = fadeIn() + scaleIn()) {
+            if (showMenu) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()

@@ -255,7 +255,7 @@ fun DuelXBrickBreakerGame(
                 }
 
                 // Game Over Overlay
-                AnimatedVisibility(visible = isGameOver || isWon, enter = fadeIn() + scaleIn()) {
+                if (isGameOver || isWon) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()

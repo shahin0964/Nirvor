@@ -457,7 +457,7 @@ fun DuelXBilliardPokerGame(
                     }
 
                     // Game Over Result Overlay
-                    AnimatedVisibility(visible = isGameOver, enter = fadeIn() + scaleIn()) {
+                    if (isGameOver) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()

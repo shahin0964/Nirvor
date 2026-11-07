@@ -320,10 +320,7 @@ fun Game2048Screen(onBack: () -> Unit) {
                 }
 
                 // Win Overlay
-                AnimatedVisibility(
-                    visible = hasWon && !dismissedWin,
-                    enter = fadeIn() + scaleIn(),
-                ) {
+                if (hasWon && !dismissedWin) {
                     OverlayMessage(
                         title = "অভিনন্দন! 🎉",
                         subtitle = "আপনি ২০৪৮ তৈরি করে বিজয়ী হয়েছেন!",
@@ -335,10 +332,7 @@ fun Game2048Screen(onBack: () -> Unit) {
                 }
 
                 // Game Over Overlay
-                AnimatedVisibility(
-                    visible = isGameOver,
-                    enter = fadeIn() + scaleIn(),
-                ) {
+                if (isGameOver) {
                     OverlayMessage(
                         title = "খেলা শেষ! 😢",
                         subtitle = "আর কোনো সম্ভাব্য চাল নেই। মোট স্কোর: $score",

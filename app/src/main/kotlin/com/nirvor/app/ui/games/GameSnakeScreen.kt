@@ -343,7 +343,7 @@ fun GameSnakeScreen(onBack: () -> Unit) {
                 }
 
                 // Game Over Overlay
-                AnimatedVisibility(visible = isGameOver, enter = fadeIn() + scaleIn()) {
+                if (isGameOver) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()

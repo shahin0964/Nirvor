@@ -243,7 +243,7 @@ fun GameMemoryMatchScreen(onBack: () -> Unit) {
                 }
 
                 // Win Celebration Overlay
-                AnimatedVisibility(visible = isWon, enter = fadeIn() + scaleIn()) {
+                if (isWon) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()

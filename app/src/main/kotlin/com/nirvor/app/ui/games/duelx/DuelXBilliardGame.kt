@@ -640,7 +640,7 @@ fun DuelXBilliardGame(
                 }
 
                 // In-Game Menu
-                AnimatedVisibility(visible = showMenu, enter = fadeIn() + scaleIn()) {
+                if (showMenu) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()

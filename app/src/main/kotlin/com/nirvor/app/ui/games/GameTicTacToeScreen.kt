@@ -321,7 +321,7 @@ fun GameTicTacToeScreen(onBack: () -> Unit) {
             Spacer(Modifier.height(18.r))
 
             // Post-Game Action
-            AnimatedVisibility(visible = isGameOver, enter = fadeIn() + scaleIn()) {
+            if (isGameOver) {
                 Button(
                     onClick = { resetBoard() },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),

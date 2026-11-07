@@ -108,7 +108,7 @@ enum class Page {
     Ledger, LedgerPerson, Installment,
     ToolBox, Tool,
     Islamic, IslamicItem,
-    Games, GamePlay,
+    Games,
 }
 
 /** Pages where the green + button makes sense. */

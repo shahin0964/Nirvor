@@ -416,6 +416,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                 }
 
                 Page.Games -> DuelXMainHubScreen(
+                    userName = currentName.ifBlank { "SHAHIN" },
                     onExitGameHub = { goBack() },
                 )
 

@@ -30,22 +30,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import com.nirvor.app.ui.RText
+import com.nirvor.app.ui.games.Game2048Screen
+import com.nirvor.app.ui.games.GameMemoryMatchScreen
+import com.nirvor.app.ui.games.GameMinesweeperScreen
+import com.nirvor.app.ui.games.GameSnakeScreen
+import com.nirvor.app.ui.games.GameTicTacToeScreen
 import com.nirvor.app.ui.icons.Glyph
 import com.nirvor.app.ui.icons.GlyphIcon
 import com.nirvor.app.ui.r
 
 private enum class ActiveDuelScreen {
-    Lobby, Billiard, Carrom, Ludo, Profile, Leaderboard, Shop, DailyBonus, Missions, Friends
+    Lobby, Billiard, BilliardPoker, Carrom, Ludo, BrickBreaker, Archery,
+    Snake, Game2048, TicTacToe, Minesweeper, Memory,
+    Profile, Leaderboard, Shop, DailyBonus, Missions, Friends
 }
 
 @Composable
 fun DuelXMainHubScreen(
+    userName: String = "SHAHIN",
     onExitGameHub: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -60,12 +67,16 @@ fun DuelXMainHubScreen(
         }
     }
 
-    var profile by remember { mutableStateOf(DuelXStorage.loadProfile(context)) }
+    var profile by remember { mutableStateOf(DuelXStorage.loadProfile(context, defaultName = userName)) }
     var activeScreen by remember { mutableStateOf(ActiveDuelScreen.Lobby) }
 
     when (activeScreen) {
         ActiveDuelScreen.Billiard -> {
             DuelXBilliardGame(profile = profile, onBack = { activeScreen = ActiveDuelScreen.Lobby })
+        }
+
+        ActiveDuelScreen.BilliardPoker -> {
+            DuelXBilliardPokerGame(profile = profile, onBack = { activeScreen = ActiveDuelScreen.Lobby })
         }
 
         ActiveDuelScreen.Carrom -> {
@@ -74,6 +85,34 @@ fun DuelXMainHubScreen(
 
         ActiveDuelScreen.Ludo -> {
             DuelXLudoGame(profile = profile, onBack = { activeScreen = ActiveDuelScreen.Lobby })
+        }
+
+        ActiveDuelScreen.BrickBreaker -> {
+            DuelXBrickBreakerGame(profile = profile, onBack = { activeScreen = ActiveDuelScreen.Lobby })
+        }
+
+        ActiveDuelScreen.Archery -> {
+            DuelXArcheryGame(profile = profile, onBack = { activeScreen = ActiveDuelScreen.Lobby })
+        }
+
+        ActiveDuelScreen.Snake -> {
+            GameSnakeScreen(onBack = { activeScreen = ActiveDuelScreen.Lobby })
+        }
+
+        ActiveDuelScreen.Game2048 -> {
+            Game2048Screen(onBack = { activeScreen = ActiveDuelScreen.Lobby })
+        }
+
+        ActiveDuelScreen.TicTacToe -> {
+            GameTicTacToeScreen(onBack = { activeScreen = ActiveDuelScreen.Lobby })
+        }
+
+        ActiveDuelScreen.Minesweeper -> {
+            GameMinesweeperScreen(onBack = { activeScreen = ActiveDuelScreen.Lobby })
+        }
+
+        ActiveDuelScreen.Memory -> {
+            GameMemoryMatchScreen(onBack = { activeScreen = ActiveDuelScreen.Lobby })
         }
 
         ActiveDuelScreen.Profile -> {
@@ -231,27 +270,30 @@ fun DuelXMainHubScreen(
                                     .fillMaxHeight(),
                                 verticalArrangement = Arrangement.SpaceBetween,
                             ) {
-                                // Daily Bonus
+                                // Real Daily Bonus
+                                val canClaim = DuelXStorage.canClaimDailyBonus(profile)
+                                val countdown = DuelXStorage.getDailyBonusCountdown(profile)
+
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(10.r))
                                         .background(Color(0xFF131D31))
-                                        .border(1.r, Color(0xFFF59E0B), RoundedCornerShape(10.r))
+                                        .border(1.r, if (canClaim) Color(0xFF10B981) else Color(0xFFF59E0B), RoundedCornerShape(10.r))
                                         .clickable { activeScreen = ActiveDuelScreen.DailyBonus }
                                         .padding(6.r),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                 ) {
                                     RText("DAILY BONUS", 9, FontWeight.Bold, Color(0xFFFBBF24))
-                                    RText("14:43:24", 9, FontWeight.Medium, Color(0xFF94A3B8))
+                                    RText(countdown, 9, FontWeight.Medium, if (canClaim) Color(0xFF34D399) else Color(0xFF94A3B8))
                                     Spacer(Modifier.height(3.r))
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(4.r))
-                                            .background(Color(0xFFF59E0B))
+                                            .background(if (canClaim) Color(0xFF10B981) else Color(0xFFF59E0B))
                                             .padding(horizontal = 6.r, vertical = 2.r),
                                     ) {
-                                        RText("CLAIM NOW", 8, FontWeight.Bold, Color.Black)
+                                        RText(if (canClaim) "CLAIM NOW" else "TIMER", 8, FontWeight.Bold, Color.White)
                                     }
                                 }
 
@@ -294,14 +336,14 @@ fun DuelXMainHubScreen(
 
                             Spacer(Modifier.width(10.r))
 
-                            // Center 4 Featured Game Cards
+                            // Center 4 Featured Game Cards + Quick Play Shelf
                             Column(
                                 modifier = Modifier.weight(1f),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                             ) {
-                                RText("CHOOSE YOUR TABLE", 18, FontWeight.ExtraBold, Color.White)
+                                RText("CHOOSE YOUR TABLE", 17, FontWeight.ExtraBold, Color.White)
                                 RText("PICK YOUR GAME AND START DUEL", 10, FontWeight.Bold, Color(0xFF38BDF8))
-                                Spacer(Modifier.height(8.r))
+                                Spacer(Modifier.height(6.r))
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -310,7 +352,7 @@ fun DuelXMainHubScreen(
                                     // 1. BILLIARD
                                     DuelGameCard(
                                         title = "BILLIARD",
-                                        sub = "PLAY 8, 9 OR 10 BALL\nRANDOMLY",
+                                        sub = "8, 9 OR 10 BALL\nPOOL DUEL",
                                         badge = "🎱",
                                         buttonColor = Color(0xFF10B981),
                                         modifier = Modifier.weight(1f),
@@ -324,7 +366,7 @@ fun DuelXMainHubScreen(
                                         badge = "🃏",
                                         buttonColor = Color(0xFF8B5CF6),
                                         modifier = Modifier.weight(1f),
-                                        onClick = { activeScreen = ActiveDuelScreen.Billiard },
+                                        onClick = { activeScreen = ActiveDuelScreen.BilliardPoker },
                                     )
 
                                     // 3. LUDO
@@ -346,6 +388,22 @@ fun DuelXMainHubScreen(
                                         modifier = Modifier.weight(1f),
                                         onClick = { activeScreen = ActiveDuelScreen.Carrom },
                                     )
+                                }
+
+                                Spacer(Modifier.height(6.r))
+
+                                // Quick Play Arcade Shelf
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(6.r),
+                                ) {
+                                    QuickArcadePill("🧱 BRICK", Modifier.weight(1f)) { activeScreen = ActiveDuelScreen.BrickBreaker }
+                                    QuickArcadePill("🏹 ARCHERY", Modifier.weight(1f)) { activeScreen = ActiveDuelScreen.Archery }
+                                    QuickArcadePill("🐍 SNAKE", Modifier.weight(1f)) { activeScreen = ActiveDuelScreen.Snake }
+                                    QuickArcadePill("🔢 2048", Modifier.weight(1f)) { activeScreen = ActiveDuelScreen.Game2048 }
+                                    QuickArcadePill("❌ XO", Modifier.weight(1f)) { activeScreen = ActiveDuelScreen.TicTacToe }
+                                    QuickArcadePill("💣 MINES", Modifier.weight(1f)) { activeScreen = ActiveDuelScreen.Minesweeper }
+                                    QuickArcadePill("🃏 MEMORY", Modifier.weight(1f)) { activeScreen = ActiveDuelScreen.Memory }
                                 }
                             }
 
@@ -428,9 +486,10 @@ fun DuelXMainHubScreen(
                     // Modals
                     if (activeScreen == ActiveDuelScreen.DailyBonus) {
                         DuelXDailyBonusDialog(
-                            onClaim = { coins ->
-                                val newCoins = DuelXStorage.addCoins(context, coins)
-                                profile = profile.copy(coins = newCoins)
+                            profile = profile,
+                            onClaim = {
+                                val (amount, _) = DuelXStorage.claimDailyBonus(context)
+                                profile = DuelXStorage.loadProfile(context)
                             },
                             onClose = { activeScreen = ActiveDuelScreen.Lobby },
                         )
@@ -443,10 +502,10 @@ fun DuelXMainHubScreen(
                     if (activeScreen == ActiveDuelScreen.Friends) {
                         DuelXPlayFriendsDialog(
                             onSelectGame = { g ->
-                                if (g.contains("CARROM", ignoreCase = true)) {
-                                    activeScreen = ActiveDuelScreen.Carrom
-                                } else {
-                                    activeScreen = ActiveDuelScreen.Billiard
+                                when {
+                                    g.contains("CARROM", ignoreCase = true) -> activeScreen = ActiveDuelScreen.Carrom
+                                    g.contains("POKER", ignoreCase = true) -> activeScreen = ActiveDuelScreen.BilliardPoker
+                                    else -> activeScreen = ActiveDuelScreen.Billiard
                                 }
                             },
                             onClose = { activeScreen = ActiveDuelScreen.Lobby },
@@ -455,6 +514,20 @@ fun DuelXMainHubScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun QuickArcadePill(text: String, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.r))
+            .background(Color(0xFF1E293B))
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.r),
+        contentAlignment = Alignment.Center,
+    ) {
+        RText(text, 9, FontWeight.Bold, Color(0xFFE2E8F0), maxLines = 1)
     }
 }
 
@@ -469,32 +542,32 @@ private fun DuelGameCard(
 ) {
     Column(
         modifier = modifier
-            .height(170.r)
-            .clip(RoundedCornerShape(14.r))
+            .height(152.r)
+            .clip(RoundedCornerShape(12.r))
             .background(Color(0xFF131D31))
-            .border(1.r, Color(0xFF1E293B), RoundedCornerShape(14.r))
-            .padding(10.r),
+            .border(1.r, Color(0xFF1E293B), RoundedCornerShape(12.r))
+            .padding(8.r),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
-        RText(badge, 36, FontWeight.Bold, Color.White)
+        RText(badge, 30, FontWeight.Bold, Color.White)
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            RText(title, 14, FontWeight.ExtraBold, Color.White)
+            RText(title, 13, FontWeight.ExtraBold, Color.White)
             Spacer(Modifier.height(2.r))
-            RText(sub, 9, FontWeight.Medium, Color(0xFF94A3B8), align = TextAlign.Center, lineHeight = 11)
+            RText(sub, 8, FontWeight.Medium, Color(0xFF94A3B8), align = TextAlign.Center, lineHeight = 10)
         }
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(8.r))
+                .clip(RoundedCornerShape(6.r))
                 .background(buttonColor)
                 .clickable(onClick = onClick)
-                .padding(vertical = 5.r),
+                .padding(vertical = 4.r),
             contentAlignment = Alignment.Center,
         ) {
-            RText("PLAY NOW", 11, FontWeight.Bold, Color.White)
+            RText("PLAY NOW", 10, FontWeight.Bold, Color.White)
         }
     }
 }

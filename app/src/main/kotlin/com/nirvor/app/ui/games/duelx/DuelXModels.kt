@@ -2,6 +2,7 @@ package com.nirvor.app.ui.games.duelx
 
 import android.content.Context
 import androidx.compose.ui.graphics.Color
+import java.util.concurrent.TimeUnit
 
 data class DuelXProfile(
     val name: String = "SHAHIN",
@@ -15,6 +16,8 @@ data class DuelXProfile(
     val botLevel: String = "NORMAL",
     val wins: Int = 1,
     val gamesPlayed: Int = 3,
+    val lastDailyBonusClaim: Long = 0L,
+    val dailyBonusStreak: Int = 1,
 )
 
 data class TableStyle(
@@ -41,10 +44,13 @@ object DuelXTables {
 object DuelXStorage {
     private const val PREFS = "duel_x_game_prefs"
 
-    fun loadProfile(context: Context): DuelXProfile {
+    fun loadProfile(context: Context, defaultName: String? = null): DuelXProfile {
         val sp = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val savedName = sp.getString("name", null)
+        val nameToUse = if (!savedName.isNullOrBlank()) savedName else if (!defaultName.isNullOrBlank()) defaultName else "SHAHIN"
+
         return DuelXProfile(
-            name = sp.getString("name", "SHAHIN") ?: "SHAHIN",
+            name = nameToUse,
             level = sp.getInt("level", 2),
             coins = sp.getInt("coins", 1625),
             gems = sp.getInt("gems", 5),
@@ -55,6 +61,8 @@ object DuelXStorage {
             botLevel = sp.getString("bot_lvl", "NORMAL") ?: "NORMAL",
             wins = sp.getInt("wins", 1),
             gamesPlayed = sp.getInt("games_played", 3),
+            lastDailyBonusClaim = sp.getLong("last_claim", 0L),
+            dailyBonusStreak = sp.getInt("daily_streak", 1),
         )
     }
 
@@ -72,6 +80,8 @@ object DuelXStorage {
             .putString("bot_lvl", profile.botLevel)
             .putInt("wins", profile.wins)
             .putInt("games_played", profile.gamesPlayed)
+            .putLong("last_claim", profile.lastDailyBonusClaim)
+            .putInt("daily_streak", profile.dailyBonusStreak)
             .apply()
     }
 
@@ -80,5 +90,56 @@ object DuelXStorage {
         val updated = current.copy(coins = (current.coins + delta).coerceAtLeast(0))
         saveProfile(context, updated)
         return updated.coins
+    }
+
+    fun recordMatchResult(context: Context, won: Boolean, coinsDelta: Int): DuelXProfile {
+        val current = loadProfile(context)
+        val newWins = if (won) current.wins + 1 else current.wins
+        val newPlayed = current.gamesPlayed + 1
+        val newLevel = 1 + (newPlayed / 3)
+        val newCoins = (current.coins + coinsDelta).coerceAtLeast(0)
+        val updated = current.copy(
+            wins = newWins,
+            gamesPlayed = newPlayed,
+            level = newLevel,
+            coins = newCoins,
+        )
+        saveProfile(context, updated)
+        return updated
+    }
+
+    fun canClaimDailyBonus(profile: DuelXProfile): Boolean {
+        val now = System.currentTimeMillis()
+        val diff = now - profile.lastDailyBonusClaim
+        return diff >= TimeUnit.HOURS.toMillis(24) || profile.lastDailyBonusClaim == 0L
+    }
+
+    fun getDailyBonusCountdown(profile: DuelXProfile): String {
+        val now = System.currentTimeMillis()
+        val diff = now - profile.lastDailyBonusClaim
+        val oneDay = TimeUnit.HOURS.toMillis(24)
+        if (diff >= oneDay || profile.lastDailyBonusClaim == 0L) return "READY!"
+
+        val remainMs = oneDay - diff
+        val hours = TimeUnit.MILLISECONDS.toHours(remainMs)
+        val mins = TimeUnit.MILLISECONDS.toMinutes(remainMs) % 60
+        val secs = TimeUnit.MILLISECONDS.toSeconds(remainMs) % 60
+        return String.format("%02d:%02d:%02d", hours, mins, secs)
+    }
+
+    fun claimDailyBonus(context: Context): Pair<Int, Int> {
+        val current = loadProfile(context)
+        val rewards = listOf(200, 300, 400, 500, 700, 900, 1500)
+        val streak = current.dailyBonusStreak.coerceIn(1, 7)
+        val rewardAmount = rewards[streak - 1]
+
+        val nextStreak = if (streak >= 7) 1 else streak + 1
+        val updated = current.copy(
+            coins = current.coins + rewardAmount,
+            lastDailyBonusClaim = System.currentTimeMillis(),
+            dailyBonusStreak = nextStreak,
+        )
+        saveProfile(context, updated)
+        return Pair(rewardAmount, streak)
     }
 }

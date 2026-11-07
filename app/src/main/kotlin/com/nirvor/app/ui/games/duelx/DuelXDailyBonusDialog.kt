@@ -38,10 +38,14 @@ import com.nirvor.app.ui.r
 
 @Composable
 fun DuelXDailyBonusDialog(
+    profile: DuelXProfile,
     onClaim: (Int) -> Unit,
     onClose: () -> Unit,
 ) {
-    var claimed by remember { mutableStateOf(false) }
+    val canClaim = DuelXStorage.canClaimDailyBonus(profile)
+    var claimed by remember { mutableStateOf(!canClaim) }
+    var claimedAmount by remember { mutableIntStateOf(0) }
+    val currentStreak = profile.dailyBonusStreak.coerceIn(1, 7)
 
     val days = listOf(
         Pair("DAY 1", "200"),
@@ -85,9 +89,10 @@ fun DuelXDailyBonusDialog(
                     horizontalArrangement = Arrangement.spacedBy(8.r),
                 ) {
                     days.forEachIndexed { index, (dayLabel, rewardText) ->
-                        val isDay1 = index == 0
-                        val cardBg = if (isDay1 && !claimed) Color(0xFF1E293B) else Color(0xFF141E33)
-                        val borderColor = if (isDay1 && !claimed) Color(0xFF10B981) else Color(0xFF334155)
+                        val dayNum = index + 1
+                        val isCurrentDay = dayNum == currentStreak
+                        val cardBg = if (isCurrentDay && !claimed) Color(0xFF1E293B) else Color(0xFF141E33)
+                        val borderColor = if (isCurrentDay && !claimed) Color(0xFF10B981) else Color(0xFF334155)
 
                         Column(
                             modifier = Modifier
@@ -98,7 +103,7 @@ fun DuelXDailyBonusDialog(
                                 .padding(vertical = 10.r, horizontal = 4.r),
                             horizontalAlignment = Alignment.CenterHorizontally,
                         ) {
-                            RText(dayLabel, 11, FontWeight.Bold, if (isDay1) Color(0xFF34D399) else Color(0xFF64748B))
+                            RText(dayLabel, 11, FontWeight.Bold, if (isCurrentDay) Color(0xFF34D399) else Color(0xFF64748B))
                             Spacer(Modifier.height(6.r))
                             // Gold 9 coin badge
                             Box(
@@ -119,13 +124,14 @@ fun DuelXDailyBonusDialog(
                 Spacer(Modifier.height(20.r))
 
                 if (claimed) {
+                    val msg = if (claimedAmount > 0) "+$claimedAmount COINS CLAIMED! 🎉" else "NEXT REWARD IN: ${DuelXStorage.getDailyBonusCountdown(profile)}"
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.r))
                             .background(Color(0xFF065F46))
                             .padding(horizontal = 20.r, vertical = 8.r),
                     ) {
-                        RText("+200 COINS CLAIMED! 🎉", 16, FontWeight.Bold, Color(0xFF34D399))
+                        RText(msg, 15, FontWeight.Bold, Color(0xFF34D399))
                     }
                     Spacer(Modifier.height(14.r))
                 }
@@ -134,11 +140,14 @@ fun DuelXDailyBonusDialog(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.r),
                 ) {
-                    if (!claimed) {
+                    if (!claimed && canClaim) {
                         Button(
                             onClick = {
+                                val rewards = listOf(200, 300, 400, 500, 700, 900, 1500)
+                                val amount = rewards[currentStreak - 1]
+                                claimedAmount = amount
                                 claimed = true
-                                onClaim(200)
+                                onClaim(amount)
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
                             shape = RoundedCornerShape(14.r),

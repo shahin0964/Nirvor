@@ -143,6 +143,7 @@ fun RuqyahScreen(onBack: () -> Unit) {
         durationMs = 0
 
         try {
+            val loopEnabled = isLooping
             val p = MediaPlayer().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
@@ -151,7 +152,7 @@ fun RuqyahScreen(onBack: () -> Unit) {
                         .build()
                 )
                 setDataSource(item.audioUrl)
-                isLooping = this@RuqyahScreen.isLooping
+                isLooping = loopEnabled
                 setOnPreparedListener { mp ->
                     isLoadingAudio = false
                     durationMs = mp.duration
@@ -159,7 +160,7 @@ fun RuqyahScreen(onBack: () -> Unit) {
                     isPlaying = true
                 }
                 setOnCompletionListener {
-                    if (!this@RuqyahScreen.isLooping) {
+                    if (!loopEnabled) {
                         isPlaying = false
                         currentPositionMs = durationMs
                     }

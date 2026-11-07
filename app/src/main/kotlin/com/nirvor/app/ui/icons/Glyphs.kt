@@ -32,7 +32,7 @@ enum class Glyph {
     Search, Dots, Clipboard, Engine, ArrowLeft, ArrowRight,
     Incognito, Exit, AdBlock, Binoculars, Layers, Grid, Qr, Cookie, External, Copy, Magnet, History, Code,
     Printer, Save, Desktop, Bookmark, BookmarkAdd, Filter, Sliders, AddBox, Edit, ChevronUp, ChevronDown,
-    Lock, Eye, Coins, Swap,
+    Lock, Eye, Coins, Swap, Gamepad,
 }
 
 @Composable
@@ -803,6 +803,17 @@ fun DrawScope.drawGlyph(g: Glyph, color: Color, accent: Color, sw: Float) {
             drawPath(path { m(15.0, 4.2); l(19.0, 8.0); l(15.0, 11.8) }, color, style = st)
             line(19.8, 16.0, 5.4, 16.0)
             drawPath(path { m(9.0, 12.2); l(5.0, 16.0); l(9.0, 19.8) }, color, style = st)
+        }
+
+        // Gamepad: game controller
+        Glyph.Gamepad -> {
+            rrect(2.5, 6.5, 21.5, 17.5, 4.5, stroke = true)
+            line(7.0, 9.5, 7.0, 14.5)
+            line(4.5, 12.0, 9.5, 12.0)
+            circle(16.5, 10.2, 1.1)
+            circle(18.8, 12.0, 1.1)
+            circle(16.5, 13.8, 1.1)
+            circle(14.2, 12.0, 1.1)
         }
     }
 }

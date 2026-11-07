@@ -45,6 +45,7 @@ enum class IslamicTool(val emoji: String, val title: String, val sub: String, va
     Qaza("📋", "কাজা নামাজ", "বাকি নামাজের হিসাব", true),
     Quran("📖", "কুরআন", "পড়া, অনুবাদ, তিলাওয়াত", true),
     Dua("🤲", "দোয়া ও আযকার", "সকাল-সন্ধ্যা ও প্রতিদিনের", true),
+    Ruqyah("🛡️", "রুকইয়াহ", "বদনজর, জাদু ও শিফার অডিও", true),
     Ramadan("🌙", "রমজান", "সাহরি-ইফতার, রোজা", true),
     Zakat("💰", "যাকাত", "হিসাব ও নিসাব", true),
     NamazSettings("⚙️", "নামাজের সময়ের নিয়ম", "", true);
@@ -196,6 +197,7 @@ fun IslamicHost(tool: IslamicTool, onBack: () -> Unit, onOpen: (IslamicTool) -> 
         IslamicTool.Qaza -> QazaScreen(onBack)
         IslamicTool.Quran -> QuranScreen(onBack)
         IslamicTool.Dua -> DuaScreen(onBack)
+        IslamicTool.Ruqyah -> RuqyahScreen(onBack)
         IslamicTool.Ramadan -> RamadanScreen(onBack, onLocation)
         IslamicTool.Zakat -> ZakatScreen(onBack)
     }

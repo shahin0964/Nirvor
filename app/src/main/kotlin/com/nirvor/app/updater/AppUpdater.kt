@@ -64,61 +64,89 @@ object AppUpdater {
             }
 
             val code = conn.responseCode
-            if (code != HttpURLConnection.HTTP_OK) {
-                return@withContext Result.failure(Exception("GitHub API প্রতিক্রিয়া কোড: $code"))
-            }
+            if (code == HttpURLConnection.HTTP_OK) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(body)
 
-            val body = conn.inputStream.bufferedReader().use { it.readText() }
-            val json = JSONObject(body)
+                val tagName = json.optString("tag_name", "")
+                val cleanVersion = tagName.removePrefix("v").removePrefix("V")
+                val releaseTitle = json.optString("name", "Nirvor $tagName")
+                val releaseNotes = json.optString("body", "কোনো বিবরণ পাওয়া যায়নি।")
+                val publishedAt = json.optString("published_at", "")
 
-            val tagName = json.optString("tag_name", "")
-            val cleanVersion = tagName.removePrefix("v").removePrefix("V")
-            val releaseTitle = json.optString("name", "Nirvor $tagName")
-            val releaseNotes = json.optString("body", "কোনো বিবরণ পাওয়া যায়নি।")
-            val publishedAt = json.optString("published_at", "")
+                val assets = json.optJSONArray("assets")
+                var downloadUrl = ""
+                var apkSize = 0L
 
-            val assets = json.optJSONArray("assets")
-            var downloadUrl = ""
-            var apkSize = 0L
+                if (assets != null) {
+                    // Prefer Nirvor-latest.apk or Nirvor-v*.apk or any .apk
+                    var selectedAsset: JSONObject? = null
+                    for (i in 0 until assets.length()) {
+                        val asset = assets.getJSONObject(i)
+                        val name = asset.optString("name", "")
+                        if (name.equals("Nirvor-latest.apk", ignoreCase = true)) {
+                            selectedAsset = asset
+                            break
+                        } else if (name.endsWith(".apk", ignoreCase = true)) {
+                            selectedAsset = asset
+                        }
+                    }
 
-            if (assets != null) {
-                // Prefer Nirvor-latest.apk or Nirvor-v*.apk or any .apk
-                var selectedAsset: JSONObject? = null
-                for (i in 0 until assets.length()) {
-                    val asset = assets.getJSONObject(i)
-                    val name = asset.optString("name", "")
-                    if (name.equals("Nirvor-latest.apk", ignoreCase = true)) {
-                        selectedAsset = asset
-                        break
-                    } else if (name.endsWith(".apk", ignoreCase = true)) {
-                        selectedAsset = asset
+                    if (selectedAsset != null) {
+                        downloadUrl = selectedAsset.optString("browser_download_url", "")
+                        apkSize = selectedAsset.optLong("size", 0L)
                     }
                 }
 
-                if (selectedAsset != null) {
-                    downloadUrl = selectedAsset.optString("browser_download_url", "")
-                    apkSize = selectedAsset.optLong("size", 0L)
+                if (downloadUrl.isEmpty()) {
+                    downloadUrl = "https://github.com/shahin0964/Nirvor/releases/download/$tagName/Nirvor-latest.apk"
+                }
+
+                val updateAvailable = isRemoteNewer(currentVersion, tagName)
+
+                Result.success(
+                    UpdateInfo(
+                        version = cleanVersion,
+                        tagName = tagName,
+                        releaseTitle = releaseTitle,
+                        releaseNotes = releaseNotes,
+                        publishedAt = publishedAt,
+                        downloadUrl = downloadUrl,
+                        apkSize = apkSize,
+                        isUpdateAvailable = updateAvailable,
+                    )
+                )
+            } else {
+                // Rate limited (403) or API error: Fallback to GitHub Web redirect (zero rate-limits)
+                val webUrl = URL("https://github.com/shahin0964/Nirvor/releases/latest")
+                val webConn = (webUrl.openConnection() as HttpURLConnection).apply {
+                    instanceFollowRedirects = false
+                    connectTimeout = 12000
+                    readTimeout = 15000
+                    setRequestProperty("User-Agent", "Mozilla/5.0")
+                }
+                val redirectLocation = webConn.getHeaderField("Location")
+                if (!redirectLocation.isNullOrEmpty()) {
+                    val tag = redirectLocation.substringAfterLast("/")
+                    val cleanVersion = tag.removePrefix("v").removePrefix("V")
+                    val downloadUrl = "https://github.com/shahin0964/Nirvor/releases/download/$tag/Nirvor-latest.apk"
+                    val updateAvailable = isRemoteNewer(currentVersion, tag)
+                    Result.success(
+                        UpdateInfo(
+                            version = cleanVersion,
+                            tagName = tag,
+                            releaseTitle = "Nirvor $tag",
+                            releaseNotes = "লেটেস্ট আপডেট উপলব্ধ রয়েছে।",
+                            publishedAt = "",
+                            downloadUrl = downloadUrl,
+                            apkSize = 0L,
+                            isUpdateAvailable = updateAvailable,
+                        )
+                    )
+                } else {
+                    Result.failure(Exception("GitHub API প্রতিক্রিয়া কোড: $code"))
                 }
             }
-
-            if (downloadUrl.isEmpty()) {
-                downloadUrl = "https://github.com/shahin0964/Nirvor/releases/download/$tagName/Nirvor-latest.apk"
-            }
-
-            val updateAvailable = isRemoteNewer(currentVersion, tagName)
-
-            Result.success(
-                UpdateInfo(
-                    version = cleanVersion,
-                    tagName = tagName,
-                    releaseTitle = releaseTitle,
-                    releaseNotes = releaseNotes,
-                    publishedAt = publishedAt,
-                    downloadUrl = downloadUrl,
-                    apkSize = apkSize,
-                    isUpdateAvailable = updateAvailable,
-                )
-            )
         } catch (e: Exception) {
             Result.failure(e)
         }

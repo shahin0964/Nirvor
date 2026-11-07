@@ -85,6 +85,7 @@ import com.nirvor.app.ui.islamic.IslamicHubScreen
 import com.nirvor.app.ui.islamic.IslamicTool
 import com.nirvor.app.ui.games.GameHostScreen
 import com.nirvor.app.ui.games.GamesHubScreen
+import com.nirvor.app.ui.games.duelx.DuelXMainHubScreen
 import com.nirvor.app.ui.ledger.KistiSheet
 import com.nirvor.app.ui.ledger.LEDGER_TAB_KISTI
 import com.nirvor.app.ui.ledger.LEDGER_TAB_OWE
@@ -414,18 +415,8 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                     }
                 }
 
-                Page.Games -> GamesHubScreen(
-                    bottomPadding = listBottom,
-                    onBack = { goBack() },
-                    onOpenGame = { id ->
-                        gameId = id
-                        openPage(Page.GamePlay)
-                    },
-                )
-
-                Page.GamePlay -> GameHostScreen(
-                    gameId = gameId,
-                    onBack = { goBack() },
+                Page.Games -> DuelXMainHubScreen(
+                    onExitGameHub = { goBack() },
                 )
 
                 Page.Installment -> InstallmentScreen(

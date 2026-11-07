@@ -80,7 +80,7 @@ fun MoreScreen(
         item { MenuRow(Glyph.Swap, C.OrangeA, C.OrangeB, "Lend & Borrow", "দেনা-পাওনা ও কিস্তি", onLedger) }
         item { MenuRow(Glyph.Grid, Color(0xFF5B8DEF), Color(0xFF3B5BDB), "Tool Box", "দরকারি সব টুল এক জায়গায়", onTools) }
         item { MenuRow(Glyph.MoonStar, Color(0xFF0E9F6E), Color(0xFF065F46), "Islamic Tools", "নামাজ, কিবলা, কুরআন, দোয়া", onIslamic) }
-        item { MenuRow(Glyph.Gamepad, Color(0xFFEC4899), Color(0xFFBE185D), "Game Hub", "মজার সব অফলাইন গেম ও বিনোদন", onGames) }
+        item { MenuRow(Glyph.Gamepad, Color(0xFFE11D48), Color(0xFFBE123C), "DUEL X Games", "বিলিয়ার্ড, ক্যারম, লুডো ও আর্কেড", onGames) }
         item { MenuRow(Glyph.Bell, C.PurpleA, C.PurpleB, "Upcoming Reminders", "রিমাইন্ডার", onReminders) }
         item { MenuRow(Glyph.Target, C.HabGreenA, C.HabGreenB, "Today's Habit", "হ্যাবিট", onHabits) }
         item { MenuRow(Glyph.Note, C.NotesIconA, C.NotesIconB, "Quick Notes", "নোট", onNotes) }

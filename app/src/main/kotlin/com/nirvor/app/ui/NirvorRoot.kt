@@ -83,6 +83,7 @@ import com.nirvor.app.ui.tools.ToolHost
 import com.nirvor.app.ui.islamic.IslamicHost
 import com.nirvor.app.ui.islamic.IslamicHubScreen
 import com.nirvor.app.ui.islamic.IslamicTool
+import com.nirvor.app.ui.tools.gametools.GameToolsHubScreen
 import com.nirvor.app.ui.ledger.KistiSheet
 import com.nirvor.app.ui.ledger.LEDGER_TAB_KISTI
 import com.nirvor.app.ui.ledger.LEDGER_TAB_OWE
@@ -105,6 +106,7 @@ enum class Page {
     Ledger, LedgerPerson, Installment,
     ToolBox, Tool,
     Islamic, IslamicItem,
+    GameTools,
 }
 
 /** Pages where the green + button makes sense. */
@@ -308,6 +310,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                         onLedger = { openPage(Page.Ledger) },
                         onTools = { openPage(Page.ToolBox) },
                         onIslamic = { openPage(Page.Islamic) },
+                        onGameTools = { openPage(Page.GameTools) },
                         onReminders = { openPage(Page.Reminders) },
                         onHabits = { openPage(Page.Habits) },
                         onNotes = { openPage(Page.Notes) },
@@ -408,6 +411,11 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                     }
                 }
 
+                Page.GameTools -> GameToolsHubScreen(
+                    userName = currentName.ifBlank { "SHAHIN" },
+                    bottomPadding = listBottom,
+                    onBack = { goBack() },
+                )
 
                 Page.Installment -> InstallmentScreen(
                     vm = vm,

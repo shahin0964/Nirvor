@@ -83,9 +83,6 @@ import com.nirvor.app.ui.tools.ToolHost
 import com.nirvor.app.ui.islamic.IslamicHost
 import com.nirvor.app.ui.islamic.IslamicHubScreen
 import com.nirvor.app.ui.islamic.IslamicTool
-import com.nirvor.app.ui.games.GameHostScreen
-import com.nirvor.app.ui.games.GamesHubScreen
-import com.nirvor.app.ui.games.duelx.DuelXMainHubScreen
 import com.nirvor.app.ui.ledger.KistiSheet
 import com.nirvor.app.ui.ledger.LEDGER_TAB_KISTI
 import com.nirvor.app.ui.ledger.LEDGER_TAB_OWE
@@ -108,7 +105,6 @@ enum class Page {
     Ledger, LedgerPerson, Installment,
     ToolBox, Tool,
     Islamic, IslamicItem,
-    Games,
 }
 
 /** Pages where the green + button makes sense. */
@@ -149,8 +145,6 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
     var toolName by rememberSaveable { mutableStateOf("") }
     // Islamic Tools: the tool that is open.
     var islamicName by rememberSaveable { mutableStateOf("") }
-    // Game Hub: the game that is open.
-    var gameId by rememberSaveable { mutableStateOf("") }
     val skyClock = remember { SkyClock() }
     var headerDark by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -314,7 +308,6 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                         onLedger = { openPage(Page.Ledger) },
                         onTools = { openPage(Page.ToolBox) },
                         onIslamic = { openPage(Page.Islamic) },
-                        onGames = { openPage(Page.Games) },
                         onReminders = { openPage(Page.Reminders) },
                         onHabits = { openPage(Page.Habits) },
                         onNotes = { openPage(Page.Notes) },
@@ -415,10 +408,6 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                     }
                 }
 
-                Page.Games -> DuelXMainHubScreen(
-                    userName = currentName.ifBlank { "SHAHIN" },
-                    onExitGameHub = { goBack() },
-                )
 
                 Page.Installment -> InstallmentScreen(
                     vm = vm,

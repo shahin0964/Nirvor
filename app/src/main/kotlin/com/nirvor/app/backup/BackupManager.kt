@@ -382,26 +382,6 @@ object BackupManager {
         "$tasks Tasks • $expenses Expenses • $notes Notes"
     }
 
-    /** Shares the given backup file via Android system share sheet. */
-    fun shareBackupFile(context: Context, file: File) {
-        try {
-            val authority = "${context.packageName}.files"
-            val uri = FileProvider.getUriForFile(context, authority, file)
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "application/json"
-                putExtra(Intent.EXTRA_STREAM, uri)
-                putExtra(Intent.EXTRA_SUBJECT, "Nirvor Backup (${file.name})")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            val chooser = Intent.createChooser(intent, "Share Nirvor Backup")
-            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            context.startActivity(chooser)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            Toast.makeText(context, "শেয়ার করা যায়নি: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     private fun rotateAutoBackups(dir: File, keep: Int) {
         val autos = dir.listFiles { f -> f.isFile && f.name.startsWith("nirvor_autobackup_") && f.name.endsWith(".json") }
             ?.sortedByDescending { it.lastModified()} ?: return

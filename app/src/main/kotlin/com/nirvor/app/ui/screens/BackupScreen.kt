@@ -489,7 +489,7 @@ fun BackupScreen(bottomPadding: Dp, onBack: () -> Unit) {
                         CircularProgressIndicator(modifier = Modifier.size(24.r), color = Color(0xFF052012), strokeWidth = 2.5.r)
                     } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            GlyphIcon(Glyph.Upload, Color(0xFF052012), Modifier.size(20.r), strokeWidth = 2.4f)
+                            GlyphIcon(Glyph.Save, Color(0xFF052012), Modifier.size(20.r), strokeWidth = 2.4f)
                             Spacer(Modifier.width(10.r))
                             RText("Backup to Google Drive", 16, FontWeight.Bold, Color(0xFF052012))
                         }

@@ -5,14 +5,9 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.view.HapticFeedbackConstants
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -79,6 +74,7 @@ import com.nirvor.app.ui.RText
 import com.nirvor.app.ui.icons.Glyph
 import com.nirvor.app.ui.icons.GlyphIcon
 import com.nirvor.app.ui.r
+import com.nirvor.app.util.Fmt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -307,11 +303,7 @@ fun CarromScreen(
                 .height(34.dp),
             contentAlignment = Alignment.Center,
         ) {
-            AnimatedVisibility(
-                visible = bannerText != null,
-                enter = fadeIn() + scaleIn(),
-                exit = fadeOut() + scaleOut(),
-            ) {
+            if (bannerText != null) {
                 Box(
                     Modifier
                         .clip(RoundedCornerShape(16.dp))

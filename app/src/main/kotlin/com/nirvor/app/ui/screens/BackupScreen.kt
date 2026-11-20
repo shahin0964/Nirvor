@@ -11,22 +11,26 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,7 +38,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -42,15 +46,10 @@ import androidx.compose.ui.unit.Dp
 import com.nirvor.app.NirvorApplication
 import com.nirvor.app.backup.AutoBackupScheduler
 import com.nirvor.app.backup.BackupManager
-import com.nirvor.app.ui.ListCard
-import com.nirvor.app.ui.PageScaffold
 import com.nirvor.app.ui.RText
-import com.nirvor.app.ui.SectionLabel
 import com.nirvor.app.ui.icons.Glyph
 import com.nirvor.app.ui.icons.GlyphIcon
 import com.nirvor.app.ui.r
-import com.nirvor.app.ui.theme.C
-import com.nirvor.app.util.Fmt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -66,14 +65,26 @@ fun BackupScreen(bottomPadding: Dp, onBack: () -> Unit) {
     val prefs = app.prefs
     val scope = rememberCoroutineScope()
 
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Local Backup, 1: Google Drive
     var autoEnabled by remember { mutableStateOf(prefs.autoBackupEnabled) }
-    var lastBackup by remember { mutableStateOf(prefs.lastBackupTime) }
-    var localFiles by remember { mutableStateOf(BackupManager.listLocalBackups(context)) }
+    var lastBackup by remember { mutableLongStateOf(prefs.lastBackupTime) }
+    var recordsSummary by remember { mutableStateOf("লোড হচ্ছে...") }
     var isWorking by remember { mutableStateOf(false) }
 
+    val singleFile = remember(lastBackup) { BackupManager.getSingleAutoBackupFile(context) }
     var confirmRestoreFile by remember { mutableStateOf<File?>(null) }
     var confirmRestoreJson by remember { mutableStateOf<String?>(null) }
-    var confirmDeleteFile by remember { mutableStateOf<File?>(null) }
+
+    fun refreshSummary() {
+        scope.launch {
+            recordsSummary = BackupManager.getRecordsSummary(context)
+            lastBackup = prefs.lastBackupTime
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshSummary()
+    }
 
     // Google Drive / SAF Save Launcher
     val saveDriveLauncher = rememberLauncherForActivityResult(
@@ -89,7 +100,7 @@ fun BackupScreen(bottomPadding: Dp, onBack: () -> Unit) {
                         if (ok) {
                             prefs.lastBackupTime = System.currentTimeMillis()
                             lastBackup = prefs.lastBackupTime
-                            Toast.makeText(context, "গুগল ড্রাইভ / ক্লাউডে সফলভাবে সংরক্ষিত হয়েছে!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Google Drive-এ সফলভাবে ব্যাকআপ সংরক্ষিত হয়েছে!", Toast.LENGTH_LONG).show()
                         } else {
                             Toast.makeText(context, "সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।", Toast.LENGTH_SHORT).show()
                         }
@@ -101,7 +112,7 @@ fun BackupScreen(bottomPadding: Dp, onBack: () -> Unit) {
         }
     }
 
-    // Google Drive / SAF Open/Restore Launcher
+    // Google Drive / Storage Open/Restore Launcher
     val openDriveLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -119,34 +130,125 @@ fun BackupScreen(bottomPadding: Dp, onBack: () -> Unit) {
         }
     }
 
-    fun refreshList() {
-        localFiles = BackupManager.listLocalBackups(context)
-        lastBackup = prefs.lastBackupTime
-    }
-
-    PageScaffold(
-        title = "Backup & Restore",
-        subtitle = "অফলাইন ও গুগল ড্রাইভ ব্যাকআপ",
-        onBack = onBack,
-        bottomPadding = bottomPadding,
+    // Main Dark Modal Screen
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F141C))
+            .padding(bottom = bottomPadding),
     ) {
-        // Auto Backup section
-        item { SectionLabel("স্বয়ংক্রিয় ব্যাকআপ") }
-        item {
-            ListCard {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 24.r),
+        ) {
+            // 1. Top Header with Icon, Title, Subtitle and Close Button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 22.r, vertical = 20.r),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(46.r)
+                        .clip(RoundedCornerShape(13.r))
+                        .background(Color(0xFF064E3B)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    GlyphIcon(Glyph.Refresh, Color(0xFF00E676), Modifier.size(24.r), strokeWidth = 2.4f)
+                }
+
+                Spacer(Modifier.width(14.r))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    RText("Backup & Restore", 22, FontWeight.Bold, Color.White)
+                    Spacer(Modifier.height(3.r))
+                    RText("Single-File Auto-Overwrite Backup", 13.5, FontWeight.Normal, Color(0xFF94A3B8))
+                }
+
+                Box(
+                    modifier = Modifier
+                        .size(38.r)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1E2633))
+                        .clickable(onClick = onBack),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    GlyphIcon(Glyph.Close, Color(0xFFCBD5E1), Modifier.size(19.r), strokeWidth = 2.2f)
+                }
+            }
+
+            // 2. Tab Switcher (Segmented Capsule)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.r)
+                    .clip(RoundedCornerShape(14.r))
+                    .background(Color(0xFF1B2230))
+                    .padding(4.r),
+                horizontalArrangement = Arrangement.spacedBy(4.r),
+            ) {
+                // Tab 0: 24/7 Local Backup
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.r)
+                        .clip(RoundedCornerShape(11.r))
+                        .background(if (selectedTab == 0) Color(0xFF00E676) else Color.Transparent)
+                        .clickable { selectedTab = 0 },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    RText(
+                        "📱 24/7 Local Backup",
+                        14,
+                        FontWeight.Bold,
+                        if (selectedTab == 0) Color(0xFF052012) else Color(0xFF94A3B8),
+                    )
+                }
+
+                // Tab 1: Google Drive Cloud
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.r)
+                        .clip(RoundedCornerShape(11.r))
+                        .background(if (selectedTab == 1) Color(0xFF00E676) else Color.Transparent)
+                        .clickable { selectedTab = 1 },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    RText(
+                        "☁️ Google Drive Cloud",
+                        14,
+                        FontWeight.Bold,
+                        if (selectedTab == 1) Color(0xFF052012) else Color(0xFF94A3B8),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.r))
+
+            // 3. Status Banner
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.r)
+                    .clip(RoundedCornerShape(14.r))
+                    .background(Color(0xFF064E3B).copy(alpha = 0.45f))
+                    .border(1.r, Color(0xFF059669).copy(alpha = 0.55f), RoundedCornerShape(14.r))
+                    .padding(horizontal = 16.r, vertical = 10.r),
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(54.r).background(Brush.linearGradient(listOf(Color(0xFF0D9488), Color(0xFF0F766E))), CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        GlyphIcon(Glyph.ClockHands, Color.White, Modifier.size(28.r), strokeWidth = 2f)
-                    }
-                    Spacer(Modifier.width(16.r))
-                    Column(Modifier.weight(1f)) {
-                        RText("দৈনিক অটো-ব্যাকআপ", 21, FontWeight.Bold, C.Ink)
-                        Spacer(Modifier.height(3.r))
-                        RText("প্রতিদিন রাত ১১:৩০ PM-এ ব্যাকআপ হবে", 16, FontWeight.Normal, C.StatLabelBn)
-                    }
+                    Box(Modifier.size(8.r).background(Color(0xFF00E676), CircleShape))
+                    Spacer(Modifier.width(10.r))
+                    RText(
+                        if (selectedTab == 0) "Auto-Backup Active • 24/7 Protected" else "Google Drive Cloud • Ready to Sync",
+                        13.5,
+                        FontWeight.SemiBold,
+                        Color(0xFF34D399),
+                        Modifier.weight(1f),
+                    )
                     Switch(
                         checked = autoEnabled,
                         onCheckedChange = { checked ->
@@ -161,299 +263,350 @@ fun BackupScreen(bottomPadding: Dp, onBack: () -> Unit) {
                             }
                         },
                         colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = Color(0xFF0D9488),
+                            checkedThumbColor = Color(0xFF052012),
+                            checkedTrackColor = Color(0xFF00E676),
+                            uncheckedThumbColor = Color(0xFF94A3B8),
+                            uncheckedTrackColor = Color(0xFF1B2230),
                         ),
+                        modifier = Modifier.scale(0.82f),
                     )
                 }
-                Spacer(Modifier.height(10.r))
-                val lastStr = if (lastBackup > 0L) {
-                    "সর্বশেষ ব্যাকআপ: " + SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.US).format(Date(lastBackup))
+            }
+
+            Spacer(Modifier.height(12.r))
+
+            // 4. Description Text
+            RText(
+                if (selectedTab == 0) {
+                    "Whenever you edit or update any data, the entire app database is automatically backed up and overwritten to a single secure file (Nirvor_AutoBackup.json). It also runs daily in the background at 11:30 PM."
                 } else {
-                    "এখনো কোনো ব্যাকআপ নেওয়া হয়নি"
-                }
-                RText(lastStr, 15, FontWeight.Medium, Color(0xFF0D9488))
-            }
-        }
+                    "Easily export your complete backup to Google Drive or any cloud folder, and restore on any new phone whenever you need."
+                },
+                13.5,
+                FontWeight.Normal,
+                Color(0xFF94A3B8),
+                Modifier.padding(horizontal = 22.r),
+                lineHeight = 20,
+            )
 
-        // Google Drive / Cloud section
-        item { SectionLabel("গুগল ড্রাইভ ও ক্লাউড") }
-        item {
-            ListCard {
-                RText("গুগল ড্রাইভ ব্যাকআপ ও রিস্টোর", 20, FontWeight.Bold, C.Ink)
-                Spacer(Modifier.height(5.r))
-                RText(
-                    "আপনার গুগল ড্রাইভ বা যেকোনো ক্লাউড ফোল্ডারে ডেটা নিরাপদে সংরক্ষণ করুন এবং যেকোনো নতুন ফোনে রিস্টোর করুন।",
-                    16,
-                    FontWeight.Normal,
-                    C.StatLabelBn,
-                    lineHeight = 23,
-                )
-                Spacer(Modifier.height(16.r))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.r)) {
-                    Button(
-                        onClick = {
-                            val timeTag = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                            saveDriveLauncher.launch("nirvor_backup_$timeTag.json")
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(14.r),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                    ) {
-                        RText("☁️ ড্রাইভে সেভ", 16, FontWeight.SemiBold, Color.White)
+            Spacer(Modifier.height(16.r))
+
+            // 5. LOCAL BACKUP DETAILS / GOOGLE DRIVE DETAILS Card
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.r)
+                    .clip(RoundedCornerShape(16.r))
+                    .background(Color(0xFF141C28))
+                    .border(1.r, Color(0xFF232E40), RoundedCornerShape(16.r))
+                    .padding(18.r),
+            ) {
+                Column {
+                    // Header of details card
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        RText(
+                            if (selectedTab == 0) "LOCAL BACKUP DETAILS" else "GOOGLE DRIVE DETAILS",
+                            12.5,
+                            FontWeight.SemiBold,
+                            Color(0xFF64748B),
+                            Modifier.weight(1f),
+                        )
+                        RText("READY ✓", 13, FontWeight.Bold, Color(0xFF00E676))
                     }
-                    Button(
-                        onClick = { openDriveLauncher.launch(arrayOf("application/json", "*/*")) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(14.r),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669)),
-                    ) {
-                        RText("📥 ড্রাইভ রিস্টোর", 16, FontWeight.SemiBold, Color.White)
+
+                    Spacer(Modifier.height(15.r))
+
+                    // Row 1: File Name
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        RText("File Name", 14, FontWeight.Normal, Color(0xFF94A3B8), Modifier.weight(1f))
+                        RText(
+                            if (selectedTab == 0) "Nirvor_AutoBackup.json" else "Nirvor_DriveBackup.json",
+                            14,
+                            FontWeight.SemiBold,
+                            Color(0xFF38BDF8),
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.r))
+
+                    // Row 2: Location
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        RText("Location", 14, FontWeight.Normal, Color(0xFF94A3B8), Modifier.weight(1f))
+                        RText(
+                            if (selectedTab == 0) "Download/Nirvor_Backup/" else "Google Drive / Cloud Folder",
+                            14,
+                            FontWeight.Medium,
+                            Color.White,
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.r))
+
+                    // Row 3: Last Backup
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        RText("Last Backup", 14, FontWeight.Normal, Color(0xFF94A3B8), Modifier.weight(1f))
+                        val lastStr = if (lastBackup > 0L) {
+                            SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.US).format(Date(lastBackup))
+                        } else {
+                            "Never"
+                        }
+                        RText(lastStr, 14, FontWeight.Medium, Color.White)
+                    }
+
+                    Spacer(Modifier.height(12.r))
+
+                    // Row 4: File Size
+                    if (selectedTab == 0) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            RText("File Size", 14, FontWeight.Normal, Color(0xFF94A3B8), Modifier.weight(1f))
+                            val sizeStr = if (singleFile.exists()) {
+                                String.format(Locale.US, "%.1f KB", singleFile.length() / 1024.0)
+                            } else {
+                                "0.0 KB"
+                            }
+                            RText(sizeStr, 14, FontWeight.Bold, Color(0xFFF59E0B))
+                        }
+                        Spacer(Modifier.height(12.r))
+                    }
+
+                    // Row 5: Records Saved
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        RText("Records Saved", 14, FontWeight.Normal, Color(0xFF94A3B8), Modifier.weight(1f))
+                        RText(recordsSummary, 14, FontWeight.Medium, Color.White)
                     }
                 }
             }
-        }
 
-        // Offline storage section
-        item { SectionLabel("অফলাইন লোকাল ব্যাকআপ") }
-        item {
-            ListCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        RText("এখনই অফলাইন ব্যাকআপ নিন", 20, FontWeight.Bold, C.Ink)
-                        Spacer(Modifier.height(3.r))
-                        RText("Downloads/Nirvor_Backup ফোল্ডারে সেভ হবে", 15, FontWeight.Normal, C.StatLabelBn)
-                    }
-                    Button(
-                        onClick = {
+            Spacer(Modifier.height(20.r))
+
+            // 6. Action Buttons Stack
+            if (selectedTab == 0) {
+                // Tab 0: Local Backup Actions
+                // Button 1: Backup Now (Overwrite File)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.r)
+                        .height(52.r)
+                        .clip(RoundedCornerShape(14.r))
+                        .background(Color(0xFF00E676))
+                        .clickable {
                             scope.launch {
                                 isWorking = true
                                 try {
-                                    val file = BackupManager.saveOfflineBackup(context)
-                                    withContext(Dispatchers.Main) {
-                                        refreshList()
-                                        Toast.makeText(context, "ব্যাকআপ সংরক্ষিত হয়েছে: ${file.name}", Toast.LENGTH_LONG).show()
-                                    }
+                                    BackupManager.saveSingleAutoBackup(context)
+                                    refreshSummary()
+                                    Toast.makeText(context, "ব্যাকআপ সফলভাবে সংরক্ষণ ও ওভাররাইট হয়েছে!", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "ব্যর্থ: ${e.message}", Toast.LENGTH_SHORT).show()
                                 } finally {
                                     isWorking = false
                                 }
                             }
                         },
-                        shape = RoundedCornerShape(14.r),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
-                    ) {
-                        RText("+ ব্যাকআপ নিন", 16, FontWeight.SemiBold, Color.White)
-                    }
-                }
-            }
-        }
-
-        // List of backups
-        item { SectionLabel("সংরক্ষিত ব্যাকআপ ফাইল (${localFiles.size})") }
-        if (localFiles.isEmpty()) {
-            item {
-                ListCard {
-                    RText(
-                        "এখনো কোনো লোকাল ব্যাকআপ ফাইল নেই। উপরের বাটনে চাপ দিয়ে এখনই একটি অফলাইন ব্যাকআপ তৈরি করুন।",
-                        16,
-                        FontWeight.Normal,
-                        C.Hint,
-                        lineHeight = 24,
-                    )
-                }
-            }
-        } else {
-            items(localFiles.size) { idx ->
-                val f = localFiles[idx]
-                val sizeKb = (f.length() / 1024L).coerceAtLeast(1L)
-                val dateStr = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.US).format(Date(f.lastModified()))
-
-                ListCard {
-                    Column {
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (isWorking) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.r), color = Color(0xFF052012), strokeWidth = 2.5.r)
+                    } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                Modifier.size(46.r).background(Color(0xFFE6F4EA), CircleShape),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                GlyphIcon(Glyph.FileDoc, Color(0xFF0D9488), Modifier.size(24.r))
-                            }
-                            Spacer(Modifier.width(14.r))
-                            Column(Modifier.weight(1f)) {
-                                RText(f.name, 17, FontWeight.Bold, C.Ink, maxLines = 1)
-                                Spacer(Modifier.height(2.r))
-                                RText("$dateStr  •  ${sizeKb} KB", 14, FontWeight.Normal, C.StatLabel)
-                            }
+                            GlyphIcon(Glyph.Refresh, Color(0xFF052012), Modifier.size(20.r), strokeWidth = 2.4f)
+                            Spacer(Modifier.width(10.r))
+                            RText("Backup Now (Overwrite File)", 16, FontWeight.Bold, Color(0xFF052012))
                         }
-                        Spacer(Modifier.height(12.r))
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.r),
-                        ) {
-                            // Restore
-                            Button(
-                                onClick = { confirmRestoreFile = f },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.r),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669)),
-                            ) {
-                                RText("রিস্টোর", 14.5, FontWeight.SemiBold, Color.White)
+                    }
+                }
+
+                Spacer(Modifier.height(12.r))
+
+                // Button 2: Restore Data from Backup
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.r)
+                        .height(52.r)
+                        .clip(RoundedCornerShape(14.r))
+                        .background(Color(0xFF141F2D))
+                        .border(1.2.r, Color(0xFF38BDF8).copy(alpha = 0.5f), RoundedCornerShape(14.r))
+                        .clickable {
+                            if (singleFile.exists()) {
+                                confirmRestoreFile = singleFile
+                            } else {
+                                openDriveLauncher.launch(arrayOf("application/json", "*/*"))
                             }
-                            // Share
-                            Button(
-                                onClick = { BackupManager.shareBackupFile(context, f) },
-                                modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(10.r),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                            ) {
-                                RText("শেয়ার", 14.5, FontWeight.SemiBold, Color.White)
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GlyphIcon(Glyph.ClockHands, Color(0xFF38BDF8), Modifier.size(20.r), strokeWidth = 2.2f)
+                        Spacer(Modifier.width(10.r))
+                        RText("Restore Data from Backup", 16, FontWeight.SemiBold, Color(0xFF38BDF8))
+                    }
+                }
+
+                Spacer(Modifier.height(12.r))
+
+                // Button 3: Share Backup File
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.r)
+                        .height(50.r)
+                        .clip(RoundedCornerShape(14.r))
+                        .background(Color(0xFF141923))
+                        .border(1.r, Color(0xFF263244), RoundedCornerShape(14.r))
+                        .clickable {
+                            scope.launch {
+                                val file = if (singleFile.exists()) singleFile else BackupManager.saveSingleAutoBackup(context)
+                                BackupManager.shareBackupFile(context, file)
                             }
-                            // Delete
-                            Button(
-                                onClick = { confirmDeleteFile = f },
-                                modifier = Modifier.weight(0.8f),
-                                shape = RoundedCornerShape(10.r),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
-                            ) {
-                                RText("মুছুন", 14.5, FontWeight.SemiBold, Color.White)
-                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GlyphIcon(Glyph.Share, Color(0xFFCBD5E1), Modifier.size(19.r), strokeWidth = 2f)
+                        Spacer(Modifier.width(10.r))
+                        RText("Share Backup File", 15, FontWeight.Medium, Color.White)
+                    }
+                }
+            } else {
+                // Tab 1: Google Drive Actions
+                // Button 1: Backup to Google Drive
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.r)
+                        .height(52.r)
+                        .clip(RoundedCornerShape(14.r))
+                        .background(Color(0xFF00E676))
+                        .clickable {
+                            val timeTag = SimpleDateFormat("yyyyMMdd_HHmm", Locale.US).format(Date())
+                            saveDriveLauncher.launch("Nirvor_DriveBackup_$timeTag.json")
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (isWorking) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.r), color = Color(0xFF052012), strokeWidth = 2.5.r)
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            GlyphIcon(Glyph.Upload, Color(0xFF052012), Modifier.size(20.r), strokeWidth = 2.4f)
+                            Spacer(Modifier.width(10.r))
+                            RText("Backup to Google Drive", 16, FontWeight.Bold, Color(0xFF052012))
                         }
+                    }
+                }
+
+                Spacer(Modifier.height(12.r))
+
+                // Button 2: Restore from Google Drive
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.r)
+                        .height(52.r)
+                        .clip(RoundedCornerShape(14.r))
+                        .background(Color(0xFF141F2D))
+                        .border(1.2.r, Color(0xFF38BDF8).copy(alpha = 0.5f), RoundedCornerShape(14.r))
+                        .clickable {
+                            openDriveLauncher.launch(arrayOf("application/json", "*/*"))
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GlyphIcon(Glyph.Download, Color(0xFF38BDF8), Modifier.size(20.r), strokeWidth = 2.2f)
+                        Spacer(Modifier.width(10.r))
+                        RText("Restore from Google Drive", 16, FontWeight.SemiBold, Color(0xFF38BDF8))
+                    }
+                }
+
+                Spacer(Modifier.height(12.r))
+
+                // Button 3: Share to Drive / Other Apps
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.r)
+                        .height(50.r)
+                        .clip(RoundedCornerShape(14.r))
+                        .background(Color(0xFF141923))
+                        .border(1.r, Color(0xFF263244), RoundedCornerShape(14.r))
+                        .clickable {
+                            scope.launch {
+                                val file = if (singleFile.exists()) singleFile else BackupManager.saveSingleAutoBackup(context)
+                                BackupManager.shareBackupFile(context, file)
+                            }
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        GlyphIcon(Glyph.Share, Color(0xFFCBD5E1), Modifier.size(19.r), strokeWidth = 2f)
+                        Spacer(Modifier.width(10.r))
+                        RText("Share to Drive / Other Apps", 15, FontWeight.Medium, Color.White)
                     }
                 }
             }
         }
     }
 
-    // Working overlay
-    if (isWorking) {
-        AlertDialog(
-            onDismissRequest = {},
-            containerColor = Color.White,
-            confirmButton = {},
-            text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(color = Color(0xFF0D9488))
-                    Spacer(Modifier.width(18.r))
-                    RText("কাজ চলছে, অনুগ্রহ করে অপেক্ষা করুন…", 18, FontWeight.Medium, C.Ink)
-                }
-            },
-        )
-    }
+    // Confirmation dialog for restoring backup
+    val restoreTargetFile = confirmRestoreFile
+    val restoreTargetJson = confirmRestoreJson
 
-    // Confirm file restore dialog
-    confirmRestoreFile?.let { f ->
+    if (restoreTargetFile != null || restoreTargetJson != null) {
         AlertDialog(
-            onDismissRequest = { confirmRestoreFile = null },
-            containerColor = Color.White,
-            title = { RText("ডেটা রিস্টোর করবেন?", 22, FontWeight.Bold, C.Ink) },
+            onDismissRequest = {
+                confirmRestoreFile = null
+                confirmRestoreJson = null
+            },
+            title = { RText("ডেটা রিস্টোর নিশ্চিত করুন", 18, FontWeight.Bold, Color.White) },
             text = {
                 RText(
-                    "‘${f.name}’ ব্যাকআপ থেকে সব তথ্য রিস্টোর করা হবে। আপনার বর্তমান তথ্যের জায়গায় ব্যাকআপের তথ্য প্রতিস্থাপিত হবে।",
-                    17,
+                    "ব্যাকআপ রিস্টোর করলে বর্তমান ডেটা ব্যাকআপের ডেটা দ্বারা প্রতিস্থাপিত হবে। আপনি কি রিস্টোর করতে চান?",
+                    15,
                     FontWeight.Normal,
-                    C.StatLabelBn,
-                    lineHeight = 25,
+                    Color(0xFF94A3B8),
+                    lineHeight = 22,
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    val fileToRestore = f
-                    confirmRestoreFile = null
-                    scope.launch {
-                        isWorking = true
-                        try {
-                            val json = fileToRestore.readText(Charsets.UTF_8)
-                            val res = BackupManager.restoreFromJson(context, json)
-                            withContext(Dispatchers.Main) {
-                                if (res.isSuccess) {
-                                    Toast.makeText(context, "সফলভাবে ${res.getOrNull()} টি তথ্য রিস্টোর হয়েছে!", Toast.LENGTH_LONG).show()
-                                } else {
-                                    Toast.makeText(context, "রিস্টোর ব্যর্থ হয়েছে: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
-                                }
+                TextButton(
+                    onClick = {
+                        val file = confirmRestoreFile
+                        val rawJson = confirmRestoreJson
+                        confirmRestoreFile = null
+                        confirmRestoreJson = null
+                        scope.launch {
+                            val json = rawJson ?: file?.readText(Charsets.UTF_8)
+                            if (json != null) {
+                                val res = BackupManager.restoreFromJson(context, json)
+                                res.fold(
+                                    onSuccess = { count ->
+                                        Toast.makeText(context, "$count টি রেকর্ড সফলভাবে রিস্টোর হয়েছে!", Toast.LENGTH_LONG).show()
+                                        refreshSummary()
+                                        onBack()
+                                    },
+                                    onFailure = { err ->
+                                        Toast.makeText(context, "রিস্টোর ব্যর্থ: ${err.message}", Toast.LENGTH_LONG).show()
+                                    },
+                                )
                             }
-                        } finally {
-                            isWorking = false
                         }
-                    }
-                }) {
-                    RText("হ্যাঁ, রিস্টোর করুন", 18, FontWeight.Bold, Color(0xFF059669))
+                    },
+                ) {
+                    RText("হ্যাঁ, রিস্টোর করুন", 15, FontWeight.Bold, Color(0xFF00E676))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { confirmRestoreFile = null }) {
-                    RText("বাতিল", 18, FontWeight.Normal, C.StatLabel)
+                TextButton(
+                    onClick = {
+                        confirmRestoreFile = null
+                        confirmRestoreJson = null
+                    },
+                ) {
+                    RText("বাতিল", 15, FontWeight.Medium, Color(0xFF94A3B8))
                 }
             },
-        )
-    }
-
-    // Confirm JSON (Drive) restore dialog
-    confirmRestoreJson?.let { json ->
-        AlertDialog(
-            onDismissRequest = { confirmRestoreJson = null },
-            containerColor = Color.White,
-            title = { RText("গুগল ড্রাইভ ব্যাকআপ রিস্টোর করবেন?", 22, FontWeight.Bold, C.Ink) },
-            text = {
-                RText(
-                    "বাছাইকৃত ব্যাকআপ ফাইল থেকে আপনার সমস্ত কাজ, রিমাইন্ডার, হিসাব এবং ইসলামিক রেকর্ড রিস্টোর করা হবে।",
-                    17,
-                    FontWeight.Normal,
-                    C.StatLabelBn,
-                    lineHeight = 25,
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val j = json
-                    confirmRestoreJson = null
-                    scope.launch {
-                        isWorking = true
-                        try {
-                            val res = BackupManager.restoreFromJson(context, j)
-                            withContext(Dispatchers.Main) {
-                                if (res.isSuccess) {
-                                    Toast.makeText(context, "সফলভাবে ${res.getOrNull()} টি তথ্য রিস্টোর হয়েছে!", Toast.LENGTH_LONG).show()
-                                } else {
-                                    Toast.makeText(context, "রিস্টোর ব্যর্থ হয়েছে। ফাইলের বিন্যাস সঠিক কিনা দেখুন।", Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        } finally {
-                            isWorking = false
-                        }
-                    }
-                }) {
-                    RText("হ্যাঁ, রিস্টোর করুন", 18, FontWeight.Bold, Color(0xFF059669))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmRestoreJson = null }) {
-                    RText("বাতিল", 18, FontWeight.Normal, C.StatLabel)
-                }
-            },
-        )
-    }
-
-    // Confirm delete file dialog
-    confirmDeleteFile?.let { f ->
-        AlertDialog(
-            onDismissRequest = { confirmDeleteFile = null },
-            containerColor = Color.White,
-            title = { RText("ব্যাকআপ ফাইল মুছবেন?", 22, FontWeight.Bold, C.Ink) },
-            text = { RText("‘${f.name}’ ফাইলটি স্থায়ীভাবে মুছে ফেলা হবে।", 17, FontWeight.Normal, C.StatLabelBn) },
-            confirmButton = {
-                TextButton(onClick = {
-                    f.delete()
-                    confirmDeleteFile = null
-                    refreshList()
-                    Toast.makeText(context, "ফাইল মুছে ফেলা হয়েছে", Toast.LENGTH_SHORT).show()
-                }) {
-                    RText("মুছে ফেলুন", 18, FontWeight.Bold, Color(0xFFDC2626))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmDeleteFile = null }) {
-                    RText("বাতিল", 18, FontWeight.Normal, C.StatLabel)
-                }
-            },
+            containerColor = Color(0xFF141923),
         )
     }
 }

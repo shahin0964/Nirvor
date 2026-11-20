@@ -34,12 +34,29 @@ class NirvorIslamicWidgetProvider : AppWidgetProvider() {
             val maghrib = Fmt.timeAt(dayTimes[Prayer.Maghrib])
             val isha = Fmt.timeAt(dayTimes[Prayer.Isha])
 
+            val nowMillis = System.currentTimeMillis()
+            val todayFajr = dayTimes[Prayer.Fajr]
+            val todayMaghrib = dayTimes[Prayer.Maghrib]
+            val tomorrowTimes = islamicPrefs.times(today.plusDays(1)) ?: PrayerTimes.day(today.plusDays(1), 23.8103, 90.4125, ZoneId.systemDefault())
+            val tomorrowFajr = tomorrowTimes[Prayer.Fajr]
+            val tomorrowMaghrib = tomorrowTimes[Prayer.Maghrib]
+
+            fun cnt(diff: Long): String {
+                val mTotal = (diff / 60_000L).coerceAtLeast(1L)
+                val h = mTotal / 60L
+                val m = mTotal % 60L
+                return if (h > 0L) "${com.nirvor.app.islamic.bnDigits(h.toString())}ঘ ${com.nirvor.app.islamic.bnDigits(m.toString())}মি" else "${com.nirvor.app.islamic.bnDigits(m.toString())}মি"
+            }
+
+            val sehriLeft = if (nowMillis < todayFajr) cnt(todayFajr - nowMillis) else cnt(tomorrowFajr - nowMillis)
+            val iftarLeft = if (nowMillis < todayMaghrib) cnt(todayMaghrib - nowMillis) else cnt(tomorrowMaghrib - nowMillis)
+
             for (id in appWidgetIds) {
                 val views = RemoteViews(context.packageName, R.layout.widget_islamic_transparent)
 
                 views.setTextViewText(R.id.widget_islamic_hijri, hijri.text)
-                views.setTextViewText(R.id.widget_islamic_sehri, "সেহরি শেষ: $fajr")
-                views.setTextViewText(R.id.widget_islamic_iftar, "ইফতার: $maghrib")
+                views.setTextViewText(R.id.widget_islamic_sehri, "সেহরি $fajr (বাকি $sehriLeft)")
+                views.setTextViewText(R.id.widget_islamic_iftar, "ইফতার $maghrib (বাকি $iftarLeft)")
 
                 views.setTextViewText(R.id.prayer_fajr, "ফজর\n$fajr")
                 views.setTextViewText(R.id.prayer_dhuhr, "যোহর\n$dhuhr")

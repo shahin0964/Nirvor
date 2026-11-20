@@ -4,8 +4,11 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
+import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.nirvor.app.NirvorApplication
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.nirvor.app.data.DhikrCustomEntity
 import com.nirvor.app.data.DhikrLogEntity
 import com.nirvor.app.data.ExpenseEntity
@@ -327,9 +330,15 @@ object BackupManager {
         return root.toString(2)
     }
 
-    suspend fun saveOfflineBackup(context: Context, isAuto: Boolean = false): File {
+    suspend fun saveOfflineBackup(context: Context, isAuto: Boolean = false): File = withContext(Dispatchers.IO) {
         val json = exportJson(context)
         val dir = getBackupDirectory(context)
+        // Also save/overwrite single-file auto-backup (Nirvor_AutoBackup.json)
+        val singleFile = File(dir, "Nirvor_AutoBackup.json")
+        try {
+            singleFile.writeText(json, Charsets.UTF_8)
+        } catch (_: Exception) {}
+
         val timeTag = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val filename = if (isAuto) "nirvor_autobackup_$timeTag.json" else "nirvor_backup_$timeTag.json"
         val file = File(dir, filename)
@@ -339,7 +348,58 @@ object BackupManager {
         prefs.lastBackupTime = System.currentTimeMillis()
 
         if (isAuto) rotateAutoBackups(dir, keep = 7)
-        return file
+        singleFile
+    }
+
+    /**
+     * Saves and overwrites the primary single-file auto-backup:
+     * Download/Nirvor_Backup/Nirvor_AutoBackup.json
+     */
+    suspend fun saveSingleAutoBackup(context: Context): File = withContext(Dispatchers.IO) {
+        val json = exportJson(context)
+        val dir = getBackupDirectory(context)
+        val file = File(dir, "Nirvor_AutoBackup.json")
+        file.writeText(json, Charsets.UTF_8)
+        val prefs = (context.applicationContext as NirvorApplication).prefs
+        prefs.lastBackupTime = System.currentTimeMillis()
+        file
+    }
+
+    /** Returns the primary single auto-backup file. */
+    fun getSingleAutoBackupFile(context: Context): File {
+        val dir = getBackupDirectory(context)
+        return File(dir, "Nirvor_AutoBackup.json")
+    }
+
+    /** Summary of actual Nirvor records saved in the database. */
+    suspend fun getRecordsSummary(context: Context): String = withContext(Dispatchers.IO) {
+        val db = (context.applicationContext as NirvorApplication).db
+        val tasks = db.taskDao().allOnce().size
+        val expenses = db.expenseDao().allOnce().size
+        val notes = db.noteDao().allOnce().size
+        val habits = db.habitDao().habitsOnce().size
+        val reminders = db.reminderDao().allOnce().size
+        "$tasks Tasks • $expenses Expenses • $notes Notes"
+    }
+
+    /** Shares the given backup file via Android system share sheet. */
+    fun shareBackupFile(context: Context, file: File) {
+        try {
+            val authority = "${context.packageName}.files"
+            val uri = FileProvider.getUriForFile(context, authority, file)
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/json"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "Nirvor Backup (${file.name})")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            val chooser = Intent.createChooser(intent, "Share Nirvor Backup")
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(chooser)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(context, "শেয়ার করা যায়নি: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun rotateAutoBackups(dir: File, keep: Int) {

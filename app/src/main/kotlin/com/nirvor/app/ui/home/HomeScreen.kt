@@ -29,7 +29,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import com.nirvor.app.islamic.bnDigits
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -569,6 +573,19 @@ private fun IslamicTodayCard(ref: Ref, date: LocalDate, onClick: () -> Unit) {
     val dayTimes = remember(date) {
         islamicPrefs.times(date) ?: PrayerTimes.day(date, 23.8103, 90.4125, ZoneId.systemDefault())
     }
+    val tomorrowDate = remember(date) { date.plusDays(1) }
+    val tomorrowTimes = remember(tomorrowDate) {
+        islamicPrefs.times(tomorrowDate) ?: PrayerTimes.day(tomorrowDate, 23.8103, 90.4125, ZoneId.systemDefault())
+    }
+
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(10_000L)
+            nowMillis = System.currentTimeMillis()
+        }
+    }
+
     val shape = RoundedCornerShape(22.r)
     Box(
         Modifier
@@ -589,37 +606,94 @@ private fun IslamicTodayCard(ref: Ref, date: LocalDate, onClick: () -> Unit) {
         GlyphIcon(Glyph.MoonStar, Color.White, Modifier.size(26.r), strokeWidth = 2.0f)
     }
 
-    RText("Islamic Times & Fasting", 19, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 96, 571.8))
-    val hijriSub = if (hijri.month == 9) "${hijri.text} · 🌙 পবিত্র মাহে রমজান" else hijri.text
-    RText(hijriSub, 14.5, FontWeight.Medium, Color(0xFF047857), Modifier.atBaseline(ref, 96, 597.5))
+    RText("Islamic Times", 19, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 96, 571.8))
+    val hijriSub = if (hijri.month == 9) "${hijri.text} · 🌙 মাহে রমজান" else hijri.text
+    RText(hijriSub, 14, FontWeight.Medium, Color(0xFF047857), Modifier.atBaseline(ref, 96, 597.5))
 
     val fajrTime = Fmt.timeAt(dayTimes[Prayer.Fajr])
     val maghribTime = Fmt.timeAt(dayTimes[Prayer.Maghrib])
-    val nowMillis = System.currentTimeMillis()
+    val todayFajr = dayTimes[Prayer.Fajr]
+    val todayMaghrib = dayTimes[Prayer.Maghrib]
+    val tomorrowFajr = tomorrowTimes[Prayer.Fajr]
+    val tomorrowMaghrib = tomorrowTimes[Prayer.Maghrib]
 
-    val nextBadge = when {
-        nowMillis < dayTimes[Prayer.Fajr] -> "পরবর্তী: ফজর ($fajrTime)"
-        nowMillis < dayTimes[Prayer.Sunrise] -> "সূর্যোদয়: ${Fmt.timeAt(dayTimes[Prayer.Sunrise])}"
-        nowMillis < dayTimes[Prayer.Dhuhr] -> "পরবর্তী: যোহর (${Fmt.timeAt(dayTimes[Prayer.Dhuhr])})"
-        nowMillis < dayTimes[Prayer.Asr] -> "পরবর্তী: আসর (${Fmt.timeAt(dayTimes[Prayer.Asr])})"
-        nowMillis < dayTimes[Prayer.Maghrib] -> {
-            val mins = ((dayTimes[Prayer.Maghrib] - nowMillis) / 60_000L).coerceAtLeast(1L)
-            "ইফতারের বাকি $mins মিনিট"
-        }
-        nowMillis < dayTimes[Prayer.Isha] -> "পরবর্তী: এশা (${Fmt.timeAt(dayTimes[Prayer.Isha])})"
-        else -> "পরবর্তী: ফজর ($fajrTime)"
+    fun countdownText(diffMillis: Long): String {
+        val totalMins = (diffMillis / 60_000L).coerceAtLeast(1L)
+        val h = totalMins / 60L
+        val m = totalMins % 60L
+        return if (h > 0L) "${bnDigits(h.toString())}ঘ ${bnDigits(m.toString())}মি" else "${bnDigits(m.toString())}মি"
     }
 
-    Box(
-        Modifier
-            .at(ref, 462, 548)
-            .clip(RoundedCornerShape(20.r))
-            .background(Color(0xFFE6F4EA))
-            .border(1.r, Color(0xFFA7F3D0), RoundedCornerShape(20.r))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.r, vertical = 6.r),
+    // সেহরি কাউন্টডাউন
+    val sehriRemain = if (nowMillis < todayFajr) todayFajr - nowMillis else tomorrowFajr - nowMillis
+    val sehriCountdownStr = countdownText(sehriRemain)
+    val sehriBadge = "🌙 সেহরি: $sehriCountdownStr"
+
+    // ইফতার কাউন্টডাউন
+    val iftarRemain = if (nowMillis < todayMaghrib) todayMaghrib - nowMillis else tomorrowMaghrib - nowMillis
+    val iftarCountdownStr = countdownText(iftarRemain)
+    val iftarBadge = if (nowMillis >= todayMaghrib && nowMillis < todayMaghrib + 30 * 60_000L) {
+        "☀️ ইফতারের সময়!"
+    } else {
+        "☀️ ইফতার: $iftarCountdownStr"
+    }
+
+    // পরবর্তী ওয়াক্ত (চাপিয়ে দেওয়া / কম্প্যাক্ট)
+    val nextWaqt = when {
+        nowMillis < dayTimes[Prayer.Fajr] -> "ফজর ($fajrTime)"
+        nowMillis < dayTimes[Prayer.Sunrise] -> "সূর্যোদয় (${Fmt.timeAt(dayTimes[Prayer.Sunrise])})"
+        nowMillis < dayTimes[Prayer.Dhuhr] -> "যোহর (${Fmt.timeAt(dayTimes[Prayer.Dhuhr])})"
+        nowMillis < dayTimes[Prayer.Asr] -> "আসর (${Fmt.timeAt(dayTimes[Prayer.Asr])})"
+        nowMillis < dayTimes[Prayer.Maghrib] -> "মাগরিব ($maghribTime)"
+        nowMillis < dayTimes[Prayer.Isha] -> "এশা (${Fmt.timeAt(dayTimes[Prayer.Isha])})"
+        else -> "ফজর ($fajrTime)"
+    }
+    val nextBadge = "পরবর্তী: $nextWaqt"
+
+    // সেহরি কাউন্টডাউন, ইফতার কাউন্টডাউন ও পরবর্তী ওয়াক্তের ৩টি চিপ
+    Row(
+        modifier = Modifier
+            .at(ref, 235, 546)
+            .width(500.r),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        RText(nextBadge, 13.5, FontWeight.SemiBold, Color(0xFF065F46))
+        // ১. সেহরি কাউন্টডাউন
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(14.r))
+                .background(Color(0xFFECFDF5))
+                .border(1.r, Color(0xFFA7F3D0), RoundedCornerShape(14.r))
+                .padding(horizontal = 7.r, vertical = 5.r),
+        ) {
+            RText(sehriBadge, 11.5, FontWeight.SemiBold, Color(0xFF047857))
+        }
+
+        Spacer(Modifier.width(5.r))
+
+        // ২. ইফতার কাউন্টডাউন
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(14.r))
+                .background(Color(0xFFFFF7ED))
+                .border(1.r, Color(0xFFFED7AA), RoundedCornerShape(14.r))
+                .padding(horizontal = 7.r, vertical = 5.r),
+        ) {
+            RText(iftarBadge, 11.5, FontWeight.SemiBold, Color(0xFFC2410C))
+        }
+
+        Spacer(Modifier.width(5.r))
+
+        // ৩. পরবর্তী ওয়াক্ত (চাপিয়ে ছোট করা)
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(14.r))
+                .background(Color(0xFFEFF6FF))
+                .border(1.r, Color(0xFFBFDBFE), RoundedCornerShape(14.r))
+                .padding(horizontal = 7.r, vertical = 5.r),
+        ) {
+            RText(nextBadge, 11.5, FontWeight.SemiBold, Color(0xFF1D4ED8))
+        }
     }
 
     // 4 Column Box inside
@@ -634,26 +708,31 @@ private fun IslamicTodayCard(ref: Ref, date: LocalDate, onClick: () -> Unit) {
     Box(Modifier.at(ref, 385, 626).size(1.2.r, 72.r).background(Color(0xFFE2E8F0)))
     Box(Modifier.at(ref, 550, 626).size(1.2.r, 72.r).background(Color(0xFFE2E8F0)))
 
-    // Col 1: সেহরি শেষ (Fajr)
-    Box(Modifier.atCenter(ref, 54, 638).size(9.r).background(Color(0xFF10B981), CircleShape))
-    RText("সেহরি শেষ", 14, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 68, 642.5))
-    RText(fajrTime, 16, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 54, 682))
+    // Col 1: সেহরি শেষ (Fajr) + কাউন্টডাউন
+    Box(Modifier.atCenter(ref, 54, 634).size(9.r).background(Color(0xFF10B981), CircleShape))
+    RText("সেহরি শেষ", 13.5, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 68, 638))
+    RText(fajrTime, 16, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 54, 668))
+    RText("বাকি $sehriCountdownStr", 11.5, FontWeight.Medium, Color(0xFF047857), Modifier.atBaseline(ref, 54, 694))
 
-    // Col 2: ইফতারের সময় (Maghrib)
-    Box(Modifier.atCenter(ref, 228, 638).size(9.r).background(Color(0xFFF97316), CircleShape))
-    RText("ইফতারের সময়", 14, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 242, 642.5))
-    RText(maghribTime, 16, FontWeight.Bold, Color(0xFFEA580C), Modifier.atBaseline(ref, 228, 682))
+    // Col 2: ইফতারের সময় (Maghrib) + কাউন্টডাউন
+    Box(Modifier.atCenter(ref, 228, 634).size(9.r).background(Color(0xFFF97316), CircleShape))
+    RText("ইফতারের সময়", 13.5, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 242, 638))
+    RText(maghribTime, 16, FontWeight.Bold, Color(0xFFEA580C), Modifier.atBaseline(ref, 228, 668))
+    val iftarSub = if (nowMillis >= todayMaghrib && nowMillis < todayMaghrib + 30 * 60_000L) "ইফতারের সময়!" else "বাকি $iftarCountdownStr"
+    RText(iftarSub, 11.5, FontWeight.Medium, Color(0xFFC2410C), Modifier.atBaseline(ref, 228, 694))
 
     // Col 3: যোহর / নামাজের সময়
     val dhuhr = Fmt.timeAt(dayTimes[Prayer.Dhuhr])
-    Box(Modifier.atCenter(ref, 403, 638).size(9.r).background(Color(0xFF2563EB), CircleShape))
-    RText("যোহরের সময়", 14, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 417, 642.5))
-    RText(dhuhr, 16, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 403, 682))
+    Box(Modifier.atCenter(ref, 403, 634).size(9.r).background(Color(0xFF2563EB), CircleShape))
+    RText("যোহরের সময়", 13.5, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 417, 638))
+    RText(dhuhr, 16, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 403, 668))
+    RText("নামাজের সময়", 11.5, FontWeight.Normal, C.StatLabelBn, Modifier.atBaseline(ref, 403, 694))
 
     // Col 4: ইসলামিক টুলস (কিবলা ও কুরআন)
-    Box(Modifier.atCenter(ref, 568, 638).size(9.r).background(Color(0xFF8B5CF6), CircleShape))
-    RText("টুলস ও দোয়া", 14, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 582, 642.5))
-    RText("কিবলা · কুরআন", 14.5, FontWeight.SemiBold, Color(0xFF047857), Modifier.atBaseline(ref, 568, 682))
+    Box(Modifier.atCenter(ref, 568, 634).size(9.r).background(Color(0xFF8B5CF6), CircleShape))
+    RText("টুলস ও দোয়া", 13.5, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 582, 638))
+    RText("কিবলা · কুরআন", 14.5, FontWeight.SemiBold, Color(0xFF047857), Modifier.atBaseline(ref, 568, 668))
+    RText("দোয়া ও তসবিহ", 11.5, FontWeight.Normal, C.StatLabelBn, Modifier.atBaseline(ref, 568, 694))
 }
 
 // ---------------------------------------------------------------- Today's Tasks

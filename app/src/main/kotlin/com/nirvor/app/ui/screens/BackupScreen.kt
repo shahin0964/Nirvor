@@ -278,7 +278,7 @@ fun BackupScreen(bottomPadding: Dp, onBack: () -> Unit) {
             // 4. Description Text
             RText(
                 if (selectedTab == 0) {
-                    "Whenever you edit or update any data, the entire app database is automatically backed up and overwritten to a single secure file (Nirvor_AutoBackup.json). It also runs daily in the background at 11:30 PM."
+                    "প্রতিদিন রাত ১১:৩০ PM ব্যাকআপ স্বয়ংক্রিয়ভাবে সংরক্ষিত ও ওভাররাইট হয় (Nirvor_AutoBackup.json)। অ্যাপ বন্ধ থাকলেও ওপেন করলেই সাথে সাথে অটো-ব্যাকআপ আপডেট হয়ে যায়।"
                 } else {
                     "Easily export your complete backup to Google Drive or any cloud folder, and restore on any new phone whenever you need."
                 },

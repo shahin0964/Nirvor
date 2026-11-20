@@ -49,7 +49,7 @@ class BootReceiver : BroadcastReceiver() {
                 app.db.reminderDao().allOnce().forEach { ReminderScheduler.schedule(context, it) }
                 DueAlarms.rescheduleAll(context, app.db)
                 com.nirvor.app.islamic.PrayerAlarms.reschedule(context)
-                com.nirvor.app.backup.AutoBackupScheduler.schedule(context)
+                com.nirvor.app.backup.AutoBackupScheduler.checkAndTriggerOnAppOpen(context)
             } finally {
                 pending.finish()
             }

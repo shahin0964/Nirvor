@@ -36,6 +36,7 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         RefreshRateManager.applyOptimalRefreshRate(this)
+        com.nirvor.app.backup.AutoBackupScheduler.checkAndTriggerOnAppOpen(this)
         if (savedInstanceState == null) handle(intent)
         lifecycleScope.launch { Downloads.recover(this@MainActivity) }
         setContent {
@@ -50,6 +51,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         RefreshRateManager.applyOptimalRefreshRate(this)
+        com.nirvor.app.backup.AutoBackupScheduler.checkAndTriggerOnAppOpen(this)
     }
 
     override fun onNewIntent(intent: Intent) {

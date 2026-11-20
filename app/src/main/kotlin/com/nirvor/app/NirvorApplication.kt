@@ -27,9 +27,9 @@ class NirvorApplication : Application() {
         // Islamic Tools: adhan / jama'ah notifications follow the day's prayer times.
         PrayerAlarms.ensureChannels(this)
         PrayerAlarms.reschedule(this)
-        // Backup: auto-backup every night at 11:30 PM
+        // Backup: auto-backup every night at 11:30 PM & check on launch
         com.nirvor.app.backup.BackupNotifications.ensureChannel(this)
-        com.nirvor.app.backup.AutoBackupScheduler.schedule(this)
+        com.nirvor.app.backup.AutoBackupScheduler.checkAndTriggerOnAppOpen(this)
         // Clean up any remaining update APKs from storage / cache
         com.nirvor.app.updater.AppUpdater.cleanupOldApks(this)
         // Unpack the download engine now, so the first download starts without waiting.

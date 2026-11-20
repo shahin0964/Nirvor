@@ -54,6 +54,7 @@ import com.nirvor.app.ui.home.Fab
 import com.nirvor.app.ui.home.HomeScreen
 import com.nirvor.app.ui.home.Tab
 import com.nirvor.app.ui.home.sky.SkyClock
+import com.nirvor.app.ui.player.NirvorPlayerScreen
 import com.nirvor.app.ui.screens.HabitsScreen
 import com.nirvor.app.ui.screens.MoreScreen
 import com.nirvor.app.ui.screens.NotesScreen
@@ -102,7 +103,7 @@ import com.nirvor.app.ui.theme.C
 /** Full-screen pages opened on top of the tabs. */
 enum class Page {
     Reminders, Habits, Notes, Profile, Settings, Permissions, WeatherSettings, About, AppUpdate,
-    Downloads, Browser, DownloadSettings,
+    Downloads, Browser, DownloadSettings, Player,
     Ledger, LedgerPerson, Installment,
     ToolBox, Tool,
     Islamic, IslamicItem,
@@ -312,6 +313,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                     )
                     Tab.More -> MoreScreen(
                         bottomPadding = listBottom,
+                        onPlayer = { openPage(Page.Player) },
                         onDownloads = { openPage(Page.Downloads) },
                         onLedger = { openPage(Page.Ledger) },
                         onTools = { openPage(Page.ToolBox) },
@@ -446,6 +448,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                 Page.About -> AboutScreen(listBottom, onBack = { goBack() }, onUpdate = { openPage(Page.AppUpdate) })
                 Page.AppUpdate -> AppUpdateScreen(listBottom, onBack = { goBack() })
                 Page.Backup -> BackupScreen(listBottom, onBack = { goBack() })
+                Page.Player -> NirvorPlayerScreen(onBack = { goBack() })
 
                 Page.Downloads -> DownloadsScreen(
                     bottomPadding = listBottom,

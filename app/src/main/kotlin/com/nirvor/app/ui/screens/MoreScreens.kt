@@ -64,6 +64,7 @@ import com.nirvor.app.ui.theme.Inter
 @Composable
 fun MoreScreen(
     bottomPadding: Dp,
+    onPlayer: () -> Unit,
     onDownloads: () -> Unit,
     onLedger: () -> Unit,
     onTools: () -> Unit,
@@ -76,6 +77,7 @@ fun MoreScreen(
 ) {
     PageScaffold("More", "ফিচার ও সেটিংস", onBack = null, bottomPadding = bottomPadding) {
         item { SectionLabel("ফিচার") }
+        item { MenuRow(Glyph.Play, Color(0xFF2563EB), Color(0xFF1D4ED8), "Nirvor Player", "ভিডিও ও অডিও প্লেয়ার (MX Style)", onPlayer) }
         item { MenuRow(Glyph.Download, C.FabA, C.FabB, "Download Manager", "ডাউনলোড ম্যানেজার", onDownloads) }
         item { MenuRow(Glyph.Swap, C.OrangeA, C.OrangeB, "Lend & Borrow", "দেনা-পাওনা ও কিস্তি", onLedger) }
         item { MenuRow(Glyph.Grid, Color(0xFF5B8DEF), Color(0xFF3B5BDB), "Tool Box", "দরকারি সব টুল এক জায়গায়", onTools) }

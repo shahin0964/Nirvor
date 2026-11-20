@@ -33,6 +33,7 @@ enum class Glyph {
     Incognito, Exit, AdBlock, Binoculars, Layers, Grid, Qr, Cookie, External, Copy, Magnet, History, Code,
     Printer, Save, Desktop, Bookmark, BookmarkAdd, Filter, Sliders, AddBox, Edit, ChevronUp, ChevronDown,
     Lock, Eye, Coins, Swap, Gamepad,
+    Volume, Unlock, Rotate, Rewind10, Forward10, Speed, AspectRatio, Pip,
 }
 
 @Composable
@@ -814,6 +815,65 @@ fun DrawScope.drawGlyph(g: Glyph, color: Color, accent: Color, sw: Float) {
             circle(18.8, 12.0, 1.1)
             circle(16.5, 13.8, 1.1)
             circle(14.2, 12.0, 1.1)
+        }
+
+        Glyph.Volume -> {
+            drawPath(path {
+                m(3.0, 9.5); l(7.5, 9.5); l(13.0, 5.0); l(13.0, 19.0); l(7.5, 14.5); l(3.0, 14.5); z()
+            }, color, style = st)
+            drawPath(path { m(16.0, 9.0); c(17.5, 10.5, 17.5, 13.5, 16.0, 15.0) }, color, style = st)
+            drawPath(path { m(18.5, 6.5); c(21.5, 9.5, 21.5, 14.5, 18.5, 17.5) }, color, style = st)
+        }
+
+        Glyph.Unlock -> {
+            rrect(5.0, 10.4, 19.0, 20.6, 2.4, stroke = true)
+            drawPath(path { m(8.0, 10.4); l(8.0, 6.6); c(8.0, 4.2, 9.8, 2.6, 12.0, 2.6); c(14.2, 2.6, 16.0, 4.2, 16.0, 6.6) }, color, style = st)
+            circle(12.0, 15.4, 1.3)
+        }
+
+        Glyph.Rotate -> {
+            drawPath(path {
+                m(20.0, 12.0); c(20.0, 16.4, 16.4, 20.0, 12.0, 20.0); c(7.6, 20.0, 4.0, 16.4, 4.0, 12.0); c(4.0, 7.6, 7.6, 4.0, 12.0, 4.0); l(12.0, 1.5); l(16.5, 5.0); l(12.0, 8.5); l(12.0, 6.0)
+            }, color, style = st)
+        }
+
+        Glyph.Rewind10 -> {
+            drawPath(path {
+                m(12.0, 4.0); c(7.6, 4.0, 4.0, 7.6, 4.0, 12.0); c(4.0, 16.4, 7.6, 20.0, 12.0, 20.0); c(16.4, 20.0, 20.0, 16.4, 20.0, 12.0)
+            }, color, style = st)
+            drawPath(path { m(7.5, 2.0); l(4.0, 4.5); l(7.5, 7.0) }, color, style = st)
+            line(10.0, 10.0, 10.0, 14.5)
+            rrect(12.5, 9.5, 15.5, 14.5, 1.2, stroke = true)
+        }
+
+        Glyph.Forward10 -> {
+            drawPath(path {
+                m(12.0, 4.0); c(16.4, 4.0, 20.0, 7.6, 20.0, 12.0); c(20.0, 16.4, 16.4, 20.0, 12.0, 20.0); c(7.6, 20.0, 4.0, 16.4, 4.0, 12.0)
+            }, color, style = st)
+            drawPath(path { m(16.5, 2.0); l(20.0, 4.5); l(16.5, 7.0) }, color, style = st)
+            line(10.0, 10.0, 10.0, 14.5)
+            rrect(12.5, 9.5, 15.5, 14.5, 1.2, stroke = true)
+        }
+
+        Glyph.Speed -> {
+            drawPath(path {
+                m(4.0, 16.0); c(3.0, 11.5, 6.5, 6.0, 12.0, 6.0); c(17.5, 6.0, 21.0, 11.5, 20.0, 16.0)
+            }, color, style = st)
+            line(12.0, 14.0, 16.0, 10.0)
+            circle(12.0, 14.0, 1.5)
+        }
+
+        Glyph.AspectRatio -> {
+            rrect(3.0, 5.0, 21.0, 19.0, 2.5, stroke = true)
+            line(7.0, 9.0, 11.0, 9.0)
+            line(7.0, 9.0, 7.0, 13.0)
+            line(17.0, 15.0, 13.0, 15.0)
+            line(17.0, 15.0, 17.0, 11.0)
+        }
+
+        Glyph.Pip -> {
+            rrect(3.0, 5.0, 21.0, 19.0, 2.5, stroke = true)
+            rrect(11.0, 11.0, 19.0, 17.0, 1.5, stroke = true)
         }
     }
 }

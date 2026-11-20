@@ -130,6 +130,12 @@ dependencies {
     // Thumbnails
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // Nirvor Player (MX Player style media player)
+    val media3 = "1.5.1"
+    implementation("androidx.media3:media3-exoplayer:$media3")
+    implementation("androidx.media3:media3-ui:$media3")
+    implementation("androidx.media3:media3-common:$media3")
+
     // Browser: incognito profiles / header control, pull-to-refresh, QR scanner
     implementation("androidx.webkit:webkit:1.12.1")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")

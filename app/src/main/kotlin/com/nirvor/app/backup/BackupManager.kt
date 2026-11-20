@@ -80,6 +80,7 @@ object BackupManager {
             val o = JSONObject().apply {
                 put("id", r.id)
                 put("title", r.title)
+                put("epochDay", r.epochDay)
                 put("minuteOfDay", r.minuteOfDay)
                 put("repeatDaily", r.repeatDaily)
                 put("icon", r.icon)
@@ -162,8 +163,7 @@ object BackupManager {
             val o = JSONObject().apply {
                 put("id", h.id)
                 put("name", h.name)
-                put("emoji", h.emoji)
-                put("color", h.color)
+                put("icon", h.icon)
                 put("createdAt", h.createdAt)
             }
             habitsArray.put(o)
@@ -189,6 +189,7 @@ object BackupManager {
             val o = JSONObject().apply {
                 put("id", n.id)
                 put("text", n.text)
+                put("createdAt", n.createdAt)
                 put("updatedAt", n.updatedAt)
             }
             notesArray.put(o)
@@ -398,6 +399,7 @@ object BackupManager {
                         ReminderEntity(
                             id = o.optLong("id", 0L),
                             title = o.getString("title"),
+                            epochDay = o.optLong("epochDay", 0L),
                             minuteOfDay = o.getInt("minuteOfDay"),
                             repeatDaily = o.optBoolean("repeatDaily", true),
                             icon = o.optString("icon", "bell"),
@@ -510,8 +512,7 @@ object BackupManager {
                         HabitEntity(
                             id = o.optLong("id", 0L),
                             name = o.getString("name"),
-                            emoji = o.getString("emoji"),
-                            color = o.getLong("color"),
+                            icon = o.optString("icon", o.optString("emoji", "star")),
                             createdAt = o.optLong("createdAt", System.currentTimeMillis())
                         )
                     )
@@ -549,6 +550,7 @@ object BackupManager {
                         NoteEntity(
                             id = o.optLong("id", 0L),
                             text = o.getString("text"),
+                            createdAt = o.optLong("createdAt", System.currentTimeMillis()),
                             updatedAt = o.optLong("updatedAt", System.currentTimeMillis())
                         )
                     )

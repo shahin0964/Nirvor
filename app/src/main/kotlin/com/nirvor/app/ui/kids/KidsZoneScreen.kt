@@ -91,19 +91,21 @@ fun KidsZoneScreen(
     // TextToSpeech for pronunciation
     var tts by remember { mutableStateOf<TextToSpeech?>(null) }
     DisposableEffect(Unit) {
-        val instance = TextToSpeech(context) { status ->
+        var speech: TextToSpeech? = null
+        speech = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                // Try Bengali first, fallback to English
-                val res = instance.setLanguage(Locale("bn", "BD"))
-                if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    instance.setLanguage(Locale.US)
+                speech?.let { s ->
+                    val res = s.setLanguage(Locale("bn", "BD"))
+                    if (res == TextToSpeech.LANG_MISSING_DATA || res == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        s.setLanguage(Locale.US)
+                    }
                 }
             }
         }
-        tts = instance
+        tts = speech
         onDispose {
-            instance.stop()
-            instance.shutdown()
+            speech?.stop()
+            speech?.shutdown()
         }
     }
 

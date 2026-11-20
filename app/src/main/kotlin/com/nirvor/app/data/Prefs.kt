@@ -48,25 +48,6 @@ class Prefs(context: Context) {
             sp.edit().putLong("last_backup_time", value).apply()
         }
 
-    // ---------------------------------------------------------------- Kids Zone
-    var kidsPin: String
-        get() = sp.getString("kids_pin", "1234") ?: "1234"
-        set(value) {
-            sp.edit().putString("kids_pin", value).apply()
-        }
-
-    var kidsTimeLimitMins: Int
-        get() = sp.getInt("kids_time_limit_mins", 30)
-        set(value) {
-            sp.edit().putInt("kids_time_limit_mins", value).apply()
-        }
-
-    var kidsScreenPinningEnabled: Boolean
-        get() = sp.getBoolean("kids_pinning_enabled", true)
-        set(value) {
-            sp.edit().putBoolean("kids_pinning_enabled", value).apply()
-        }
-
     // ---------------------------------------------------------------- weather cache
 
     fun weather(): CachedWeather? {

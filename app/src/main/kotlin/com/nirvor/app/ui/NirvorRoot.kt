@@ -106,7 +106,7 @@ enum class Page {
     Ledger, LedgerPerson, Installment,
     ToolBox, Tool,
     Islamic, IslamicItem,
-    Backup, KidsZone,
+    Backup,
 }
 
 /** Pages where the green + button makes sense. */
@@ -316,7 +316,6 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                         onLedger = { openPage(Page.Ledger) },
                         onTools = { openPage(Page.ToolBox) },
                         onIslamic = { openPage(Page.Islamic) },
-                        onKidsZone = { openPage(Page.KidsZone) },
                         onReminders = { openPage(Page.Reminders) },
                         onHabits = { openPage(Page.Habits) },
                         onNotes = { openPage(Page.Notes) },
@@ -447,7 +446,6 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                 Page.About -> AboutScreen(listBottom, onBack = { goBack() }, onUpdate = { openPage(Page.AppUpdate) })
                 Page.AppUpdate -> AppUpdateScreen(listBottom, onBack = { goBack() })
                 Page.Backup -> BackupScreen(listBottom, onBack = { goBack() })
-                Page.KidsZone -> com.nirvor.app.ui.kids.KidsZoneScreen(onBack = { goBack() })
 
                 Page.Downloads -> DownloadsScreen(
                     bottomPadding = listBottom,

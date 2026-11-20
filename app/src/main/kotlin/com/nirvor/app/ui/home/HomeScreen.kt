@@ -624,18 +624,39 @@ private fun IslamicTodayCard(ref: Ref, date: LocalDate, onClick: () -> Unit) {
         return if (h > 0L) "${bnDigits(h.toString())}ঘ ${bnDigits(m.toString())}মি" else "${bnDigits(m.toString())}মি"
     }
 
-    // সেহরি কাউন্টডাউন
-    val sehriRemain = if (nowMillis < todayFajr) todayFajr - nowMillis else tomorrowFajr - nowMillis
-    val sehriCountdownStr = countdownText(sehriRemain)
-    val sehriBadge = "🌙 সেহরি: $sehriCountdownStr"
+    val tomorrowFajrTime = Fmt.timeAt(tomorrowFajr)
 
-    // ইফতার কাউন্টডাউন
-    val iftarRemain = if (nowMillis < todayMaghrib) todayMaghrib - nowMillis else tomorrowMaghrib - nowMillis
-    val iftarCountdownStr = countdownText(iftarRemain)
-    val iftarBadge = if (nowMillis >= todayMaghrib && nowMillis < todayMaghrib + 30 * 60_000L) {
-        "☀️ ইফতারের সময়!"
-    } else {
-        "☀️ ইফতার: $iftarCountdownStr"
+    // সেহরি কাউন্টডাউন ও স্ট্যাটাস
+    val (sehriBadge, sehriSubText) = when {
+        nowMillis < todayFajr -> {
+            val left = countdownText(todayFajr - nowMillis)
+            "🌙 সেহরি: $left" to "বাকি $left"
+        }
+        nowMillis < todayMaghrib -> {
+            "🌙 সেহরি শেষ" to "সেহরি শেষ"
+        }
+        else -> {
+            val left = countdownText(tomorrowFajr - nowMillis)
+            "🌙 সেহরি: $left" to "বাকি $left"
+        }
+    }
+
+    // ইফতার কাউন্টডাউন ও স্ট্যাটাস
+    val (iftarBadge, iftarSubText) = when {
+        nowMillis < todayFajr -> {
+            val left = countdownText(todayMaghrib - nowMillis)
+            "☀️ ইফতার: $left" to "বাকি $left"
+        }
+        nowMillis < todayMaghrib -> {
+            val left = countdownText(todayMaghrib - nowMillis)
+            "☀️ ইফতার: $left" to "বাকি $left"
+        }
+        nowMillis < todayMaghrib + 30 * 60_000L -> {
+            "☀️ ইফতারের সময়!" to "ইফতারের সময়!"
+        }
+        else -> {
+            "☀️ ইফতার সম্পন্ন" to "ইফতার সম্পন্ন"
+        }
     }
 
     // পরবর্তী ওয়াক্ত (চাপিয়ে দেওয়া / কম্প্যাক্ট)
@@ -711,15 +732,14 @@ private fun IslamicTodayCard(ref: Ref, date: LocalDate, onClick: () -> Unit) {
     // Col 1: সেহরি শেষ (Fajr) + কাউন্টডাউন
     Box(Modifier.atCenter(ref, 54, 634).size(9.r).background(Color(0xFF10B981), CircleShape))
     RText("সেহরি শেষ", 13.5, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 68, 638))
-    RText(fajrTime, 16, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 54, 668))
-    RText("বাকি $sehriCountdownStr", 11.5, FontWeight.Medium, Color(0xFF047857), Modifier.atBaseline(ref, 54, 694))
+    RText(if (nowMillis >= todayMaghrib) tomorrowFajrTime else fajrTime, 16, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 54, 668))
+    RText(sehriSubText, 11.5, FontWeight.Medium, Color(0xFF047857), Modifier.atBaseline(ref, 54, 694))
 
     // Col 2: ইফতারের সময় (Maghrib) + কাউন্টডাউন
     Box(Modifier.atCenter(ref, 228, 634).size(9.r).background(Color(0xFFF97316), CircleShape))
     RText("ইফতারের সময়", 13.5, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 242, 638))
     RText(maghribTime, 16, FontWeight.Bold, Color(0xFFEA580C), Modifier.atBaseline(ref, 228, 668))
-    val iftarSub = if (nowMillis >= todayMaghrib && nowMillis < todayMaghrib + 30 * 60_000L) "ইফতারের সময়!" else "বাকি $iftarCountdownStr"
-    RText(iftarSub, 11.5, FontWeight.Medium, Color(0xFFC2410C), Modifier.atBaseline(ref, 228, 694))
+    RText(iftarSubText, 11.5, FontWeight.Medium, Color(0xFFC2410C), Modifier.atBaseline(ref, 228, 694))
 
     // Col 3: যোহর / নামাজের সময়
     val dhuhr = Fmt.timeAt(dayTimes[Prayer.Dhuhr])

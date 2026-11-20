@@ -3,7 +3,6 @@ package com.nirvor.app.widget
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
@@ -14,28 +13,26 @@ import com.nirvor.app.islamic.Hijri
 import com.nirvor.app.islamic.IslamicPrefs
 import com.nirvor.app.islamic.Prayer
 import com.nirvor.app.islamic.PrayerTimes
+import com.nirvor.app.islamic.bnDigits
 import com.nirvor.app.util.Fmt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.YearMonth
 import java.time.ZoneId
 
 class NirvorWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
-        val app = context.applicationContext as? NirvorApplication ?: return
         CoroutineScope(Dispatchers.IO).launch {
-            val now = LocalDateTime.now()
-            val today = now.toLocalDate()
+            val app = context.applicationContext as NirvorApplication
+            val today = LocalDate.now()
             val hijri = Hijri.of(today)
-            val ym = YearMonth.from(today)
-            val startDay = ym.atDay(1).toEpochDay()
-            val endDay = ym.atEndOfMonth().toEpochDay()
 
+            // Current Month Total Expense
+            val startDay = today.withDayOfMonth(1).toEpochDay()
+            val endDay = today.withDayOfMonth(today.lengthOfMonth()).toEpochDay()
             val allExpenses = try {
                 app.db.expenseDao().all().first()
             } catch (_: Exception) {
@@ -52,19 +49,40 @@ class NirvorWidgetProvider : AppWidgetProvider() {
             val nowMillis = System.currentTimeMillis()
             val todayFajr = dayTimes[Prayer.Fajr]
             val todayMaghrib = dayTimes[Prayer.Maghrib]
-            val tomorrowTimes = islamicPrefs.times(today.plusDays(1)) ?: PrayerTimes.day(today.plusDays(1), 23.8103, 90.4125, ZoneId.systemDefault())
+            val tomorrowDate = today.plusDays(1)
+            val tomorrowTimes = islamicPrefs.times(tomorrowDate) ?: PrayerTimes.day(tomorrowDate, 23.8103, 90.4125, ZoneId.systemDefault())
             val tomorrowFajr = tomorrowTimes[Prayer.Fajr]
-            val tomorrowMaghrib = tomorrowTimes[Prayer.Maghrib]
+            val tomorrowFajrTime = Fmt.timeAt(tomorrowFajr)
 
             fun cnt(diff: Long): String {
                 val mTotal = (diff / 60_000L).coerceAtLeast(1L)
                 val h = mTotal / 60L
                 val m = mTotal % 60L
-                return if (h > 0L) "${com.nirvor.app.islamic.bnDigits(h.toString())}ঘ ${com.nirvor.app.islamic.bnDigits(m.toString())}মি" else "${com.nirvor.app.islamic.bnDigits(m.toString())}মি"
+                return if (h > 0L) "${bnDigits(h.toString())}ঘ ${bnDigits(m.toString())}মি" else "${bnDigits(m.toString())}মি"
             }
 
-            val sehriLeft = if (nowMillis < todayFajr) cnt(todayFajr - nowMillis) else cnt(tomorrowFajr - nowMillis)
-            val iftarLeft = if (nowMillis < todayMaghrib) cnt(todayMaghrib - nowMillis) else cnt(tomorrowMaghrib - nowMillis)
+            val (sehriStr, iftarStr) = when {
+                // 1. Before today's Fajr (Early morning)
+                nowMillis < todayFajr -> {
+                    val sLeft = cnt(todayFajr - nowMillis)
+                    "সেহরি $fajrTime (বাকি $sLeft)" to "ইফতার $maghribTime"
+                }
+                // 2. Between today's Fajr and Maghrib (Daytime)
+                nowMillis < todayMaghrib -> {
+                    val iLeft = cnt(todayMaghrib - nowMillis)
+                    "সেহরি শেষ ($fajrTime)" to "ইফতার $maghribTime (বাকি $iLeft)"
+                }
+                // 3. Iftar window (Maghrib to Maghrib + 30 mins)
+                nowMillis < todayMaghrib + 30 * 60_000L -> {
+                    val sLeft = cnt(tomorrowFajr - nowMillis)
+                    "সেহরি $tomorrowFajrTime (বাকি $sLeft)" to "ইফতারের সময় চলছে!"
+                }
+                // 4. After Maghrib + 30 mins (Night time)
+                else -> {
+                    val sLeft = cnt(tomorrowFajr - nowMillis)
+                    "সেহরি $tomorrowFajrTime (বাকি $sLeft)" to "ইফতার সম্পন্ন ($maghribTime)"
+                }
+            }
 
             val nextPrayerText = when {
                 nowMillis < dayTimes[Prayer.Fajr] -> "ফজর: $fajrTime"
@@ -84,7 +102,7 @@ class NirvorWidgetProvider : AppWidgetProvider() {
                 views.setTextViewText(R.id.widget_expense_amount, "৳ " + Fmt.money(monthTotal))
                 views.setTextViewText(
                     R.id.widget_sehri_iftar_times,
-                    "সেহরি $fajrTime (বাকি $sehriLeft)\nইফতার $maghribTime (বাকি $iftarLeft)"
+                    "$sehriStr\n$iftarStr"
                 )
 
                 // Click on root opens Nirvor Home
@@ -97,7 +115,7 @@ class NirvorWidgetProvider : AppWidgetProvider() {
                 )
                 views.setOnClickPendingIntent(R.id.widget_root, piMain)
 
-                // Click on Expense opens Money screen
+                // Click on Expense card opens Money Screen
                 val openMoney = Intent(context, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     putExtra(MainActivity.EXTRA_OPEN, "money")
@@ -108,7 +126,7 @@ class NirvorWidgetProvider : AppWidgetProvider() {
                 )
                 views.setOnClickPendingIntent(R.id.widget_expense_layout, piMoney)
 
-                // Click on Ramadan/Prayer opens Islamic Tools
+                // Click on Islamic card opens Islamic Tools
                 val openIslamic = Intent(context, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                     putExtra(MainActivity.EXTRA_OPEN, "islamic")

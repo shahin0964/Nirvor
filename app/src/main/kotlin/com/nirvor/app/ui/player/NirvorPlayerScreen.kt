@@ -29,8 +29,10 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -73,6 +75,9 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import com.nirvor.app.player.PlayerPrefs
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -105,7 +110,15 @@ fun NirvorPlayerScreen(
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val scope = rememberCoroutineScope()
+    val playerPrefs = remember { PlayerPrefs(context) }
+
+    // Make status bar icons light/white over dark player header
+    LaunchedEffect(Unit) {
+        val window = (context as? Activity)?.window ?: return@LaunchedEffect
+        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+    }
 
     // Permissions check
     var hasPermission by remember { mutableStateOf(MediaScanner.hasStoragePermission(context)) }
@@ -131,6 +144,9 @@ fun NirvorPlayerScreen(
     var sortField by remember { mutableStateOf(SortField.Date) }
     var sortOrder by remember { mutableStateOf(SortOrder.Descending) }
     var isViewOptionsOpen by remember { mutableStateOf(false) }
+
+    // Settings state
+    var isSettingsOpen by remember { mutableStateOf(false) }
 
     // Dialog states
     var isNetworkStreamOpen by remember { mutableStateOf(false) }
@@ -171,12 +187,15 @@ fun NirvorPlayerScreen(
         }
     }
 
-    // Intercept back navigation: if player is open -> close player; if in folder -> exit to folders; else -> onBack()
+    // Intercept back navigation: if player is open -> close player; if settings is open -> close settings; if in folder -> exit to folders; else -> onBack()
     BackHandler {
         when {
             playingPlaylist != null || activeStreamUrl != null -> {
                 playingPlaylist = null
                 activeStreamUrl = null
+            }
+            isSettingsOpen -> {
+                isSettingsOpen = false
             }
             activeFolder != null -> {
                 activeFolder = null
@@ -203,20 +222,32 @@ fun NirvorPlayerScreen(
         return
     }
 
+    // 1.5 PLAYER SETTINGS SCREEN
+    if (isSettingsOpen) {
+        PlayerSettingsScreen(
+            prefs = playerPrefs,
+            onBack = { isSettingsOpen = false }
+        )
+        return
+    }
+
     // 2. MAIN MX-STYLE BROWSER SCREEN
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xFF0F172A)) // Sleek dark MX Player aesthetic
+            .navigationBarsPadding()
     ) {
         // TOP APP BAR
         Surface(
             color = Color(0xFF1E293B),
-            shadowElevation = 4.dp
+            shadowElevation = 4.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .statusBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 Row(
@@ -293,6 +324,19 @@ fun NirvorPlayerScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         GlyphIcon(Glyph.Refresh, Color.White, Modifier.size(20.dp))
+                    }
+
+                    Spacer(Modifier.width(4.dp))
+
+                    // Settings button
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .clickable { isSettingsOpen = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        GlyphIcon(Glyph.Gear, Color.White, Modifier.size(20.dp))
                     }
                 }
 
@@ -485,6 +529,8 @@ fun NirvorPlayerScreen(
                         items(items, key = { it.id.toString() + it.path }) { item ->
                             MediaItemRow(
                                 item = item,
+                                showNewTag = playerPrefs.showNewTag,
+                                showDuration = playerPrefs.displayLengthOverThumbnail,
                                 onClick = {
                                     playingPlaylist = items
                                     playingIndex = items.indexOf(item).coerceAtLeast(0)
@@ -510,6 +556,8 @@ fun NirvorPlayerScreen(
                         items(items, key = { it.id.toString() + it.path }) { item ->
                             MediaItemGridCard(
                                 item = item,
+                                showNewTag = playerPrefs.showNewTag,
+                                showDuration = playerPrefs.displayLengthOverThumbnail,
                                 onClick = {
                                     playingPlaylist = items
                                     playingIndex = items.indexOf(item).coerceAtLeast(0)
@@ -544,6 +592,8 @@ fun NirvorPlayerScreen(
                         items(allItems, key = { it.id.toString() + it.path }) { item ->
                             MediaItemRow(
                                 item = item,
+                                showNewTag = playerPrefs.showNewTag,
+                                showDuration = playerPrefs.displayLengthOverThumbnail,
                                 onClick = {
                                     playingPlaylist = allItems
                                     playingIndex = allItems.indexOf(item).coerceAtLeast(0)
@@ -1004,6 +1054,8 @@ private fun FolderRow(
 @Composable
 private fun MediaItemRow(
     item: MediaItem,
+    showNewTag: Boolean = true,
+    showDuration: Boolean = true,
     onClick: () -> Unit,
     onPlayAsAudio: () -> Unit,
     onProperties: () -> Unit,
@@ -1052,7 +1104,7 @@ private fun MediaItemRow(
             }
 
             // Red "NEW" badge on top-left of thumbnail
-            if (item.isRecent) {
+            if (showNewTag && item.isRecent) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
@@ -1069,18 +1121,20 @@ private fun MediaItemRow(
             }
 
             // Duration badge on bottom-right of thumbnail
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(topStart = 4.dp, topEnd = 0.dp, bottomEnd = 0.dp, bottomStart = 0.dp))
-                    .padding(horizontal = 4.dp, vertical = 1.dp)
-            ) {
-                Text(
-                    text = item.formattedDuration,
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium
-                )
+            if (showDuration) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(topStart = 4.dp, topEnd = 0.dp, bottomEnd = 0.dp, bottomStart = 0.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = item.formattedDuration,
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
 
@@ -1179,6 +1233,8 @@ private fun MediaItemRow(
 @Composable
 private fun MediaItemGridCard(
     item: MediaItem,
+    showNewTag: Boolean = true,
+    showDuration: Boolean = true,
     onClick: () -> Unit,
     onProperties: () -> Unit,
 ) {
@@ -1215,7 +1271,7 @@ private fun MediaItemGridCard(
                 }
             }
 
-            if (item.isRecent) {
+            if (showNewTag && item.isRecent) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
@@ -1226,13 +1282,15 @@ private fun MediaItemGridCard(
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(topStart = 4.dp, topEnd = 0.dp, bottomEnd = 0.dp, bottomStart = 0.dp))
-                    .padding(horizontal = 4.dp, vertical = 1.dp)
-            ) {
-                Text(item.formattedDuration, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+            if (showDuration) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(topStart = 4.dp, topEnd = 0.dp, bottomEnd = 0.dp, bottomStart = 0.dp))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                ) {
+                    Text(item.formattedDuration, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                }
             }
         }
 

@@ -61,6 +61,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.MediaItem as ExoMediaItem
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -70,6 +73,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.nirvor.app.player.AspectRatioMode
 import com.nirvor.app.player.MediaItem
+import com.nirvor.app.player.PlayerPrefs
 import com.nirvor.app.player.RepeatMode
 import com.nirvor.app.ui.icons.Glyph
 import com.nirvor.app.ui.icons.GlyphIcon
@@ -90,11 +94,13 @@ fun NirvorVideoPlayer(
 ) {
     val context = LocalContext.current
     val activity = context as? Activity
+    val prefs = remember { PlayerPrefs(context) }
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
     val scope = rememberCoroutineScope()
 
     var currentIndex by remember { mutableIntStateOf(initialIndex.coerceIn(0, (playlist.size - 1).coerceAtLeast(0))) }
     val currentItem = playlist.getOrNull(currentIndex)
+    val isVideo = currentItem?.isVideo == true || streamUrl != null
 
     // Player state
     var isPlaying by remember { mutableStateOf(true) }
@@ -108,8 +114,38 @@ fun NirvorVideoPlayer(
     var speedMenuOpen by remember { mutableStateOf(false) }
     var aspectRatioMode by remember { mutableStateOf(AspectRatioMode.Fit) }
     var repeatMode by remember { mutableStateOf(RepeatMode.Off) }
-    var isHwDecoder by remember { mutableStateOf(true) }
+    var isHwDecoder by remember { mutableStateOf(prefs.hwDecoderDefault) }
     var isLandscape by remember { mutableStateOf(false) }
+
+    // Automatic Landscape mode when video starts (regardless of phone auto-rotate setting)
+    LaunchedEffect(currentIndex, streamUrl) {
+        if (isVideo && prefs.autoLandscape) {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            isLandscape = true
+        }
+    }
+
+    // Insets Controller for Immersive Fullscreen Mode (hide system navigation & status bars)
+    val window = activity?.window
+    val insetsController = remember(window) {
+        window?.let { WindowCompat.getInsetsController(it, it.decorView) }
+    }
+
+    LaunchedEffect(isControlsVisible) {
+        if (insetsController != null && prefs.immersiveFullscreen) {
+            if (!isControlsVisible) {
+                insetsController.hide(WindowInsetsCompat.Type.systemBars())
+                insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (insetsController != null && prefs.immersiveFullscreen) {
+            insetsController.hide(WindowInsetsCompat.Type.systemBars())
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
 
     // Gesture HUD overlay states (MX Player signature)
     var brightnessLevel by remember {
@@ -128,7 +164,7 @@ fun NirvorVideoPlayer(
     var seekTargetMs by remember { mutableLongStateOf(0L) }
     var showSeekHud by remember { mutableStateOf(false) }
 
-    var doubleTapFeedback by remember { mutableStateOf<String?>(null) } // "<< 10s" or "10s >>"
+    var doubleTapFeedback by remember { mutableStateOf<String?>(null) }
 
     // Sleep timer
     var sleepTimerMinutes by remember { mutableIntStateOf(0) }
@@ -153,16 +189,32 @@ fun NirvorVideoPlayer(
         val exoItem = ExoMediaItem.fromUri(uri)
         exoPlayer.setMediaItem(exoItem)
         exoPlayer.prepare()
+
+        // Resume playback if enabled
+        if (prefs.resumePlayback) {
+            val mediaKey = currentItem?.path ?: streamUrl.orEmpty()
+            val lastPos = prefs.getLastPosition(mediaKey)
+            if (lastPos > 0L) {
+                exoPlayer.seekTo(lastPos)
+            }
+        }
+
         exoPlayer.play()
     }
 
-    // Progress poller
+    // Progress poller & position saver
     LaunchedEffect(exoPlayer) {
         while (true) {
             if (exoPlayer.isPlaying) {
                 currentPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L)
                 totalDurationMs = exoPlayer.duration.coerceAtLeast(0L)
                 isPlaying = true
+                if (prefs.resumePlayback) {
+                    val mediaKey = currentItem?.path ?: streamUrl.orEmpty()
+                    if (mediaKey.isNotEmpty() && currentPositionMs > 2000L) {
+                        prefs.saveLastPosition(mediaKey, currentPositionMs)
+                    }
+                }
             } else {
                 isPlaying = exoPlayer.playWhenReady
             }
@@ -173,7 +225,7 @@ fun NirvorVideoPlayer(
     // Auto-hide controls timer
     LaunchedEffect(isControlsVisible, isPlaying, isLocked) {
         if (isControlsVisible && isPlaying && !isLocked) {
-            delay(4000)
+            delay(prefs.autoHideTimeoutSec * 1000L)
             isControlsVisible = false
         }
     }
@@ -187,10 +239,17 @@ fun NirvorVideoPlayer(
         }
     }
 
-    // Cleanup when leaving player: reset orientation and screen brightness
+    // Cleanup when leaving player: save position, restore system bars, orientation and screen brightness
     DisposableEffect(Unit) {
         onDispose {
+            if (prefs.resumePlayback) {
+                val mediaKey = currentItem?.path ?: streamUrl.orEmpty()
+                if (mediaKey.isNotEmpty() && currentPositionMs > 2000L) {
+                    prefs.saveLastPosition(mediaKey, currentPositionMs)
+                }
+            }
             exoPlayer.release()
+            insetsController?.show(WindowInsetsCompat.Type.systemBars())
             activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             activity?.window?.attributes?.let {
                 it.screenBrightness = -1f
@@ -318,14 +377,15 @@ fun NirvorVideoPlayer(
                     if (isLocked) return@pointerInput
                     detectTapGestures(
                         onDoubleTap = { offset ->
+                            val seekStepMs = prefs.doubleTapSeekSec * 1000L
                             if (offset.x < boxWidthPx * 0.5f) {
-                                val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
+                                val newPos = (exoPlayer.currentPosition - seekStepMs).coerceAtLeast(0L)
                                 exoPlayer.seekTo(newPos)
-                                doubleTapFeedback = "<< 10s"
+                                doubleTapFeedback = "<< ${prefs.doubleTapSeekSec}s"
                             } else {
-                                val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(exoPlayer.duration)
+                                val newPos = (exoPlayer.currentPosition + seekStepMs).coerceAtMost(exoPlayer.duration)
                                 exoPlayer.seekTo(newPos)
-                                doubleTapFeedback = "10s >>"
+                                doubleTapFeedback = "${prefs.doubleTapSeekSec}s >>"
                             }
                             scope.launch {
                                 delay(700)
@@ -809,13 +869,14 @@ fun NirvorVideoPlayer(
                             )
                         }
 
-                        // Rewind 10s button
+                        // Rewind button
                         Box(
                             modifier = Modifier
                                 .size(42.dp)
                                 .clip(CircleShape)
                                 .clickable {
-                                    val newPos = (exoPlayer.currentPosition - 10000L).coerceAtLeast(0L)
+                                    val step = prefs.doubleTapSeekSec * 1000L
+                                    val newPos = (exoPlayer.currentPosition - step).coerceAtLeast(0L)
                                     exoPlayer.seekTo(newPos)
                                 },
                             contentAlignment = Alignment.Center
@@ -847,13 +908,14 @@ fun NirvorVideoPlayer(
                             )
                         }
 
-                        // Fast-forward 10s button
+                        // Fast-forward button
                         Box(
                             modifier = Modifier
                                 .size(42.dp)
                                 .clip(CircleShape)
                                 .clickable {
-                                    val newPos = (exoPlayer.currentPosition + 10000L).coerceAtMost(exoPlayer.duration)
+                                    val step = prefs.doubleTapSeekSec * 1000L
+                                    val newPos = (exoPlayer.currentPosition + step).coerceAtMost(exoPlayer.duration)
                                     exoPlayer.seekTo(newPos)
                                 },
                             contentAlignment = Alignment.Center
@@ -888,7 +950,7 @@ fun NirvorVideoPlayer(
                                 .clickable {
                                     isLandscape = !isLandscape
                                     activity?.requestedOrientation = if (isLandscape) {
-                                        ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                                     } else {
                                         ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
                                     }

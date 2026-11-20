@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -152,8 +153,10 @@ fun HomeScreen(
                 name = name,
                 photo = photo,
                 preview = skyPreview,
+                weather = weather,
                 onProfile = onOpenProfile,
                 onSettings = onOpenSideBar,
+                onWeatherTap = onWeatherTap,
                 onLongPress = onSkyLongPress,
                 onClearPreview = {
                     vm.setSkyPreview(null)
@@ -174,10 +177,11 @@ fun HomeScreen(
                 dateText = Fmt.date(now.toLocalDate()),
                 completed = tasks.count { it.done },
                 remaining = tasks.count { !it.done },
+                habitsDone = habits.count { it.id in doneHabits },
+                habitsTotal = habits.size,
                 streak = streak,
-                weather = weather,
                 onDate = onOpenTasks,
-                onWeather = onWeatherTap,
+                onHabits = onOpenHabits,
             )
             TasksCard(ref, tasks, onToggle = { vm.toggleTask(it) }, onViewAll = onOpenTasks, onAdd = onAddTask)
             RemindersCard(ref, upcoming, today = now.toLocalDate().toEpochDay(), onViewAll = onOpenReminders, onAdd = onAddReminder)
@@ -198,8 +202,10 @@ private fun Header(
     name: String,
     photo: ImageBitmap?,
     preview: SkyCond?,
+    weather: WeatherUi,
     onProfile: () -> Unit,
     onSettings: () -> Unit,
+    onWeatherTap: () -> Unit,
     onLongPress: () -> Unit,
     onClearPreview: () -> Unit,
 ) {
@@ -224,7 +230,7 @@ private fun Header(
     RText(Fmt.greeting(hour), 25.5, FontWeight.Medium, ink, Modifier.atBaseline(ref, 29, 110.3), shadow = glow)
 
     Row(
-        Modifier.atBaseline(ref, 29, 161.9).widthIn(max = 578.r),
+        Modifier.atBaseline(ref, 29, 161.9).widthIn(max = 530.r),
         verticalAlignment = Alignment.Bottom,
     ) {
         if (name.isNotBlank()) {
@@ -285,6 +291,55 @@ private fun Header(
         GlyphIcon(Glyph.Gear, ink, Modifier.size(43.r), strokeWidth = 1.75f)
     }
 
+    // Weather Chip in Header (Compact weather temperature and condition)
+    val weatherDark = dark > 0.5f
+    val weatherPillBg = if (weatherDark) Color.White.copy(alpha = 0.22f) else Color.Black.copy(alpha = 0.16f)
+    val weatherBorder = if (weatherDark) Color.White.copy(alpha = 0.40f) else Color.White.copy(alpha = 0.45f)
+
+    Box(
+        Modifier
+            .at(ref, 572, 160)
+            .size(172.r, 50.r)
+            .clip(RoundedCornerShape(25.r))
+            .background(weatherPillBg)
+            .border(1.2.r, weatherBorder, RoundedCornerShape(25.r))
+            .clickable(onClick = onWeatherTap)
+            .padding(horizontal = 10.r),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.r),
+        ) {
+            GlyphIcon(
+                Glyph.Sun,
+                if (weatherDark) Color(0xFFFFD54F) else C.Sun,
+                Modifier.size(24.r),
+                strokeWidth = 1.6f,
+                accent = C.SunFill,
+            )
+            Column(verticalArrangement = Arrangement.Center) {
+                RText(
+                    weather.temp.ifBlank { "--°C" },
+                    17,
+                    FontWeight.Bold,
+                    ink,
+                    shadow = glow,
+                )
+                if (weather.desc.isNotBlank()) {
+                    RText(
+                        weather.desc,
+                        11,
+                        FontWeight.Medium,
+                        ink.copy(alpha = 0.85f),
+                        maxLines = 1,
+                        shadow = glow,
+                    )
+                }
+            }
+        }
+    }
+
     // Small pill while a preview or time-lapse is showing; tap to go back to live.
     val timelapse = sky.clock.timelapseStartUptime != null
     if (preview != null || timelapse) {
@@ -323,71 +378,99 @@ private fun TodayCard(
     dateText: String,
     completed: Int,
     remaining: Int,
+    habitsDone: Int,
+    habitsTotal: Int,
     streak: Int,
-    weather: WeatherUi,
     onDate: () -> Unit,
-    onWeather: () -> Unit,
+    onHabits: () -> Unit,
 ) {
     val shape = RoundedCornerShape(24.r)
     Box(
         Modifier
             .at(ref, 21, 264)
             .size(728.r, 251.5.r)
-            .cardSurface(shape, SolidColor(Color.White), C.TodayBorder, 1.2.r, 13.r)
+            .cardSurface(shape, SolidColor(Color.White), C.TodayBorder, 1.2.r, 8.r)
     )
     Box(Modifier.atCenter(ref, 64.5, 299).size(50.r).background(C.CalBg, CircleShape))
-    GlyphIcon(Glyph.Calendar, C.CalIcon, Modifier.atCenter(ref, 64.5, 299).size(34.r), strokeWidth = 1.75f)
-    RText("Today", 24, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 103, 306.4))
+    GlyphIcon(Glyph.Calendar, C.CalIcon, Modifier.atCenter(ref, 64.5, 299).size(32.r), strokeWidth = 1.75f)
+    RText("Today", 23, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 103, 306.4))
 
-    // Date + chevron (opens the task list)
+    // Interactive Date Pill
     Box(
         Modifier
-            .at(ref, 570, 278)
-            .size(170.r, 44.r)
-            .clip(RoundedCornerShape(12.r))
+            .at(ref, 530, 276)
+            .size(205.r, 46.r)
+            .clip(RoundedCornerShape(14.r))
+            .background(C.CalBg)
+            .border(1.r, C.Divider, RoundedCornerShape(14.r))
             .clickable(onClick = onDate)
-    )
-    RText(dateText, 18, FontWeight.Normal, C.Date, Modifier.atBaseline(ref, 700, 307.2, HAlign.End))
-    GlyphIcon(Glyph.ChevronRight, C.DateChevron, Modifier.atCenter(ref, 724, 300.5).size(21.r), strokeWidth = 2.0f)
+            .padding(horizontal = 12.r),
+        contentAlignment = Alignment.Center,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.r),
+        ) {
+            RText(dateText, 16.5, FontWeight.Medium, C.Date)
+            GlyphIcon(Glyph.ChevronRight, C.DateChevron, Modifier.size(16.r), strokeWidth = 2.2f)
+        }
+    }
 
     val cols = listOf(114.5f, 292.5f, 476.5f, 660.5f)
     listOf(206f, 384f, 568f).forEach { x ->
         Box(Modifier.at(ref, x, 344).size(1.2.r, 145.r).background(C.Divider))
     }
 
-    // Completed
+    // 1. Completed
     StatCircle(ref, cols[0], C.GreenA, C.GreenB) {
         GlyphIcon(Glyph.Check, Color.White, Modifier.size(26.r), strokeWidth = 2.7f)
     }
     StatTexts(ref, cols[0], "$completed", "Completed", "কাজ সম্পন্ন")
+    Box(
+        Modifier
+            .at(ref, cols[0] - 88f, 336)
+            .size(176.r, 160.r)
+            .clip(RoundedCornerShape(16.r))
+            .clickable(onClick = onDate)
+    )
 
-    // Remaining
+    // 2. Remaining
     StatCircle(ref, cols[1], C.OrangeA, C.OrangeB) {
         GlyphIcon(Glyph.ClockHands, Color.White, Modifier.size(26.r), strokeWidth = 2.7f)
     }
     StatTexts(ref, cols[1], "$remaining", "Remaining", "বাকি কাজ")
+    Box(
+        Modifier
+            .at(ref, cols[1] - 88f, 336)
+            .size(176.r, 160.r)
+            .clip(RoundedCornerShape(16.r))
+            .clickable(onClick = onDate)
+    )
 
-    // Day streak
-    StatCircle(ref, cols[2], C.RedA, C.RedB) {
+    // 3. Habits Done
+    StatCircle(ref, cols[2], Color(0xFF06B6D4), Color(0xFF0891B2)) {
+        GlyphIcon(Glyph.Target, Color.White, Modifier.size(26.r), strokeWidth = 2.2f)
+    }
+    StatTexts(ref, cols[2], "$habitsDone/$habitsTotal", "Habits", "হ্যাবিট সম্পন্ন")
+    Box(
+        Modifier
+            .at(ref, cols[2] - 88f, 336)
+            .size(176.r, 160.r)
+            .clip(RoundedCornerShape(16.r))
+            .clickable(onClick = onHabits)
+    )
+
+    // 4. Day streak
+    StatCircle(ref, cols[3], C.RedA, C.RedB) {
         GlyphIcon(Glyph.Flame, Color.White, Modifier.size(29.r), accent = Color(0xFFFA5446))
     }
-    StatTexts(ref, cols[2], "$streak", "Day Streak", "হ্যাবিট ধারাবাহিকতা")
-
-    // Weather
-    GlyphIcon(
-        Glyph.Sun,
-        C.Sun,
-        Modifier.atCenter(ref, cols[3], 364.5).size(43.r),
-        strokeWidth = 1.5f,
-        accent = C.SunFill,
-    )
-    StatTexts(ref, cols[3], weather.temp, weather.desc, "আবহাওয়া")
+    StatTexts(ref, cols[3], "$streak", "Streak", "ধারাবাহিকতা")
     Box(
         Modifier
             .at(ref, cols[3] - 88f, 336)
             .size(176.r, 160.r)
             .clip(RoundedCornerShape(16.r))
-            .clickable(onClick = onWeather)
+            .clickable(onClick = onHabits)
     )
 }
 
@@ -472,22 +555,41 @@ private fun TasksCard(
     onViewAll: () -> Unit,
     onAdd: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(14.r)
+    val shape = RoundedCornerShape(18.r)
     Box(
         Modifier
             .at(ref, 15.5, 532.5)
             .size(371.5.r, 391.r)
-            .cardSurface(shape, SolidColor(C.TasksBg), C.TasksBorder, 1.3.r, 4.r)
+            .cardSurface(shape, SolidColor(C.TasksBg), C.TasksBorder, 1.2.r, 4.r)
     )
-    HeaderIcon(ref, 57.5, 575, 48, C.TaskGreenA, C.TaskGreenB) {
-        GlyphIcon(Glyph.Check, Color.White, Modifier.size(30.r), strokeWidth = 2.5f)
+    HeaderIcon(ref, 57.5, 575, 46, C.TaskGreenA, C.TaskGreenB) {
+        GlyphIcon(Glyph.Check, Color.White, Modifier.size(28.r), strokeWidth = 2.6f)
     }
-    RText("Today's Tasks", 20, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 97, 581.6))
+    RText("Today's Tasks", 19.5, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 96, 581.6))
     ViewAll(ref, 301.5, 578.6, 14, C.TaskViewAll, C.TaskViewAllChevron, 365.5, 573.8, onViewAll)
 
     if (tasks.isEmpty()) {
-        RText("আজকের কোনো কাজ নেই", 16, FontWeight.Normal, C.Hint, Modifier.atBaseline(ref, 201, 735, HAlign.Center))
-        AddLink(ref, "+ কাজ যোগ করুন", 201, 770, C.TaskViewAll, onAdd)
+        Box(
+            Modifier
+                .atCenter(ref, 201, 675)
+                .size(60.r)
+                .background(Color(0xFFE8F7F0), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            GlyphIcon(Glyph.Check, C.TaskGreenA, Modifier.size(28.r), strokeWidth = 2.6f)
+        }
+        RText("আজকের কোনো কাজ নেই", 15, FontWeight.Medium, C.Hint, Modifier.atBaseline(ref, 201, 735, HAlign.Center))
+        Box(
+            Modifier
+                .atCenter(ref, 201, 785)
+                .clip(RoundedCornerShape(20.r))
+                .background(Brush.horizontalGradient(listOf(C.TaskGreenA, C.TaskGreenB)))
+                .clickable(onClick = onAdd)
+                .padding(horizontal = 18.r, vertical = 9.r),
+            contentAlignment = Alignment.Center,
+        ) {
+            RText("+ কাজ যোগ করুন", 14.5, FontWeight.SemiBold, Color.White)
+        }
         return
     }
 
@@ -536,20 +638,6 @@ private fun TasksCard(
     }
 }
 
-@Composable
-private fun AddLink(ref: Ref, text: String, cx: Number, baseline: Number, color: Color, onClick: () -> Unit) {
-    RText(
-        text,
-        16,
-        FontWeight.SemiBold,
-        color,
-        Modifier
-            .atBaseline(ref, cx, baseline, HAlign.Center)
-            .clip(RoundedCornerShape(8.r))
-            .clickable(onClick = onClick),
-    )
-}
-
 // ---------------------------------------------------------------- Upcoming Reminders
 
 @Composable
@@ -560,35 +648,41 @@ private fun RemindersCard(
     onViewAll: () -> Unit,
     onAdd: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(14.r)
+    val shape = RoundedCornerShape(18.r)
     Box(
         Modifier
             .at(ref, 402, 532.5)
             .size(350.5.r, 391.r)
-            .cardSurface(shape, SolidColor(C.RemBg), Color.Transparent, 0.r, 4.r)
+            .cardSurface(shape, SolidColor(C.RemBg), C.RemBorder, 1.2.r, 4.r)
     )
-    Box(
-        Modifier
-            .at(ref, 402, 532.5)
-            .size(350.5.r, 90.r)
-            .background(C.RemHeaderBg, RoundedCornerShape(topStart = 14.r, topEnd = 14.r))
-    )
-    Box(
-        Modifier
-            .at(ref, 402, 532.5)
-            .size(350.5.r, 391.r)
-            .border(1.3.r, C.RemBorder, shape)
-    )
-    HeaderIcon(ref, 449, 578, 51, C.PurpleA, C.PurpleB) {
-        GlyphIcon(Glyph.Bell, Color.White, Modifier.size(30.r))
+    HeaderIcon(ref, 442, 575, 46, C.PurpleA, C.PurpleB) {
+        GlyphIcon(Glyph.Bell, Color.White, Modifier.size(26.r))
     }
-    RText("Upcoming", 20, FontWeight.Bold, C.InkNavy, Modifier.atBaseline(ref, 495, 575.9))
-    RText("Reminders", 20, FontWeight.Bold, C.InkNavy, Modifier.atBaseline(ref, 495, 600.5))
+    RText("Reminders", 19.5, FontWeight.Bold, C.InkNavy, Modifier.atBaseline(ref, 478, 581.6))
     ViewAll(ref, 667, 578.6, 14, C.RemViewAll, C.RemViewAll, 728.5, 573.8, onViewAll)
 
     if (upcoming.isEmpty()) {
-        RText("কোনো রিমাইন্ডার নেই", 16, FontWeight.Normal, C.Hint, Modifier.atBaseline(ref, 577, 735, HAlign.Center))
-        AddLink(ref, "+ রিমাইন্ডার যোগ করুন", 577, 770, C.RemViewAll, onAdd)
+        Box(
+            Modifier
+                .atCenter(ref, 577, 675)
+                .size(60.r)
+                .background(Color(0xFFF3EDFD), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            GlyphIcon(Glyph.Bell, C.PurpleA, Modifier.size(28.r))
+        }
+        RText("কোনো রিমাইন্ডার নেই", 15, FontWeight.Medium, C.Hint, Modifier.atBaseline(ref, 577, 735, HAlign.Center))
+        Box(
+            Modifier
+                .atCenter(ref, 577, 785)
+                .clip(RoundedCornerShape(20.r))
+                .background(Brush.horizontalGradient(listOf(C.PurpleA, C.PurpleB)))
+                .clickable(onClick = onAdd)
+                .padding(horizontal = 18.r, vertical = 9.r),
+            contentAlignment = Alignment.Center,
+        ) {
+            RText("+ রিমাইন্ডার যোগ করুন", 14.5, FontWeight.SemiBold, Color.White)
+        }
         return
     }
 
@@ -638,23 +732,29 @@ private fun RemindersCard(
 
 @Composable
 private fun ExpenseCard(ref: Ref, expenses: List<ExpenseEntity>, onViewAll: () -> Unit) {
-    val shape = RoundedCornerShape(14.r)
+    val shape = RoundedCornerShape(18.r)
     Box(
         Modifier
             .at(ref, 15.5, 940.5)
             .size(370.5.r, 275.r)
-            .cardSurface(shape, Brush.verticalGradient(listOf(C.ExpBgTop, C.ExpBgBottom)), C.ExpBorder, 1.3.r, 4.r)
+            .cardSurface(shape, Brush.verticalGradient(listOf(C.ExpBgTop, C.ExpBgBottom)), C.ExpBorder, 1.2.r, 4.r)
     )
-    HeaderIcon(ref, 57.5, 980.5, 48, C.OrangeIconA, C.OrangeIconB) {
-        GlyphIcon(Glyph.Wallet, Color.White, Modifier.size(28.r), accent = Color(0xFFF96A31))
+    HeaderIcon(ref, 57.5, 980.5, 46, C.OrangeIconA, C.OrangeIconB) {
+        GlyphIcon(Glyph.Wallet, Color.White, Modifier.size(26.r), accent = Color(0xFFF96A31))
     }
-    RText("Today's Expense", 19, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 98, 985.8))
+    RText("Today's Expense", 19, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 96, 985.8))
     ViewAll(ref, 302, 985.9, 14.5, C.ViewAllGrey, C.ViewAllGreyChevron, 365.5, 980.8, onViewAll)
 
     val total = expenses.sumOf { it.amount }
-    RText("৳", 33, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 33, 1056.3))
-    RText(Fmt.money(total), 33, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 66, 1056.3).width(300.r))
-    RText("আজকের মোট খরচ", 15.5, FontWeight.Normal, C.ExpSub, Modifier.atBaseline(ref, 33, 1087.5))
+    Row(
+        Modifier.atBaseline(ref, 33, 1056.3),
+        verticalAlignment = Alignment.Bottom,
+    ) {
+        RText("৳", 31, FontWeight.Bold, Color(0xFFEA580C))
+        Spacer(Modifier.width(6.r))
+        RText(Fmt.money(total), 31, FontWeight.Bold, C.Ink, Modifier.widthIn(max = 280.r))
+    }
+    RText("আজকের মোট খরচ", 15, FontWeight.Normal, C.ExpSub, Modifier.atBaseline(ref, 33, 1087.5))
 
     Box(
         Modifier
@@ -691,17 +791,17 @@ private fun HabitCard(
     onViewAll: () -> Unit,
     onAdd: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(14.r)
+    val shape = RoundedCornerShape(18.r)
     Box(
         Modifier
             .at(ref, 401, 940.5)
             .size(351.5.r, 275.r)
-            .cardSurface(shape, SolidColor(C.HabBg), C.HabBorder, 1.3.r, 4.r)
+            .cardSurface(shape, SolidColor(C.HabBg), C.HabBorder, 1.2.r, 4.r)
     )
-    HeaderIcon(ref, 441.5, 980.5, 48, C.HabGreenA, C.HabGreenB) {
-        GlyphIcon(Glyph.Target, Color.White, Modifier.size(31.r), strokeWidth = 1.9f)
+    HeaderIcon(ref, 441.5, 980.5, 46, C.HabGreenA, C.HabGreenB) {
+        GlyphIcon(Glyph.Target, Color.White, Modifier.size(28.r), strokeWidth = 1.9f)
     }
-    RText("Today's Habit", 19, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 482, 986.6))
+    RText("Today's Habit", 19, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 480, 986.6))
     ViewAll(ref, 667, 985.9, 14.5, C.ViewAllGrey, C.ViewAllGreyChevron, 731, 980.8, onViewAll)
 
     val total = habits.size
@@ -726,12 +826,22 @@ private fun HabitCard(
             )
         }
     }
-    RText("$doneCount/$total", 25, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 475.5, 1093.1, HAlign.Center))
+    RText("$doneCount/$total", 24, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 475.5, 1093.1, HAlign.Center))
     RText("Completed", 10.5, FontWeight.Normal, C.RingLabel, Modifier.atBaseline(ref, 476, 1110.8, HAlign.Center))
 
     if (habits.isEmpty()) {
-        RText("কোনো হ্যাবিট নেই", 14, FontWeight.Normal, C.Hint, Modifier.atBaseline(ref, 655, 1080, HAlign.Center))
-        AddLink(ref, "+ যোগ করুন", 655, 1112, C.HabCheck, onAdd)
+        RText("কোনো হ্যাবিট নেই", 14.5, FontWeight.Medium, C.Hint, Modifier.atBaseline(ref, 655, 1070, HAlign.Center))
+        Box(
+            Modifier
+                .atCenter(ref, 655, 1110)
+                .clip(RoundedCornerShape(16.r))
+                .background(Brush.horizontalGradient(listOf(C.HabGreenA, C.HabGreenB)))
+                .clickable(onClick = onAdd)
+                .padding(horizontal = 14.r, vertical = 7.r),
+            contentAlignment = Alignment.Center,
+        ) {
+            RText("+ যোগ করুন", 13.5, FontWeight.SemiBold, Color.White)
+        }
         return
     }
 
@@ -764,31 +874,31 @@ private fun HabitCard(
 
 @Composable
 private fun NotesCard(ref: Ref, latest: NoteEntity?, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(15.r)
+    val shape = RoundedCornerShape(18.r)
     Box(
         Modifier
             .at(ref, 15.5, 1232)
             .size(574.r, 104.5.r)
-            .cardSurface(shape, SolidColor(C.NotesBg), C.NotesBorder, 1.3.r, 3.r)
+            .cardSurface(shape, SolidColor(C.NotesBg), C.NotesBorder, 1.2.r, 3.r)
             .clip(shape)
             .clickable(onClick = onClick)
     )
     Box(
         Modifier
-            .at(ref, 41, 1247)
-            .size(35.r)
-            .background(Brush.linearGradient(listOf(C.NotesIconA, C.NotesIconB)), RoundedCornerShape(8.r)),
+            .at(ref, 38, 1247)
+            .size(38.r)
+            .background(Brush.linearGradient(listOf(C.NotesIconA, C.NotesIconB)), RoundedCornerShape(10.r)),
         contentAlignment = Alignment.Center,
     ) {
-        GlyphIcon(Glyph.Note, Color.White, Modifier.size(25.r), strokeWidth = 1.9f)
+        GlyphIcon(Glyph.Note, Color.White, Modifier.size(24.r), strokeWidth = 1.9f)
     }
-    RText("Quick Notes", 16.5, FontWeight.SemiBold, C.NotesTitle, Modifier.atBaseline(ref, 92, 1269.6))
-    GlyphIcon(Glyph.ChevronRight, C.NotesChevron, Modifier.atCenter(ref, 556, 1264.5).size(21.r), strokeWidth = 2.0f)
+    RText("Quick Notes", 17, FontWeight.Bold, C.NotesTitle, Modifier.atBaseline(ref, 88, 1269.6))
+    GlyphIcon(Glyph.ChevronRight, C.NotesChevron, Modifier.atCenter(ref, 554, 1264.5).size(20.r), strokeWidth = 2.0f)
     val text = latest?.text?.lineSequence()?.firstOrNull { it.isNotBlank() }
     if (text != null) {
-        RText(text, 14, FontWeight.Normal, C.NotesText, Modifier.atBaseline(ref, 92, 1301.5).width(470.r))
+        RText(text, 14, FontWeight.Normal, C.NotesText, Modifier.atBaseline(ref, 88, 1301.5).width(470.r))
     } else {
-        RText("নোট লিখতে এখানে ট্যাপ করুন", 14, FontWeight.Normal, Color(0xFF9A8F72), Modifier.atBaseline(ref, 92, 1301.5))
+        RText("নোট লিখতে এখানে ট্যাপ করুন...", 14, FontWeight.Normal, Color(0xFF9A8F72), Modifier.atBaseline(ref, 88, 1301.5))
     }
 }
 

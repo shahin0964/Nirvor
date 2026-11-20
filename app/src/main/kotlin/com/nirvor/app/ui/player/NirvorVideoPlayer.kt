@@ -138,7 +138,7 @@ fun NirvorVideoPlayer(
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             playWhenReady = true
-            repeatMode = Player.REPEAT_MODE_OFF
+            this.repeatMode = Player.REPEAT_MODE_OFF
         }
     }
 

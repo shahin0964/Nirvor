@@ -1056,7 +1056,7 @@ private fun MediaItemRow(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .background(Color(0xFFEF4444), RoundedCornerShape(bottomEnd = 4.dp))
+                        .background(Color(0xFFEF4444), RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomEnd = 4.dp, bottomStart = 0.dp))
                         .padding(horizontal = 4.dp, vertical = 1.dp)
                 ) {
                     Text(
@@ -1072,7 +1072,7 @@ private fun MediaItemRow(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(topLeft = 4.dp))
+                    .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(topStart = 4.dp, topEnd = 0.dp, bottomEnd = 0.dp, bottomStart = 0.dp))
                     .padding(horizontal = 4.dp, vertical = 1.dp)
             ) {
                 Text(
@@ -1219,7 +1219,7 @@ private fun MediaItemGridCard(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .background(Color(0xFFEF4444), RoundedCornerShape(bottomEnd = 4.dp))
+                        .background(Color(0xFFEF4444), RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomEnd = 4.dp, bottomStart = 0.dp))
                         .padding(horizontal = 4.dp, vertical = 1.dp)
                 ) {
                     Text("NEW", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
@@ -1229,7 +1229,7 @@ private fun MediaItemGridCard(
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(topLeft = 4.dp))
+                    .background(Color.Black.copy(alpha = 0.75f), RoundedCornerShape(topStart = 4.dp, topEnd = 0.dp, bottomEnd = 0.dp, bottomStart = 0.dp))
                     .padding(horizontal = 4.dp, vertical = 1.dp)
             ) {
                 Text(item.formattedDuration, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Medium)

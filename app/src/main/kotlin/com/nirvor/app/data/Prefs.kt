@@ -36,6 +36,18 @@ class Prefs(context: Context) {
             sp.edit().putBoolean("asked_location", value).apply()
         }
 
+    var autoBackupEnabled: Boolean
+        get() = sp.getBoolean("auto_backup_enabled", true)
+        set(value) {
+            sp.edit().putBoolean("auto_backup_enabled", value).apply()
+        }
+
+    var lastBackupTime: Long
+        get() = sp.getLong("last_backup_time", 0L)
+        set(value) {
+            sp.edit().putLong("last_backup_time", value).apply()
+        }
+
     // ---------------------------------------------------------------- weather cache
 
     fun weather(): CachedWeather? {

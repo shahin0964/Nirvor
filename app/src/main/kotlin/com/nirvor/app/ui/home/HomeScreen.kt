@@ -82,8 +82,20 @@ import com.nirvor.app.ui.theme.Inter
 import com.nirvor.app.util.ExpenseCategory
 import com.nirvor.app.util.Fmt
 
+import androidx.compose.ui.platform.LocalContext
+import com.nirvor.app.islamic.Hijri
+import com.nirvor.app.islamic.IslamicPrefs
+import com.nirvor.app.islamic.Prayer
+import com.nirvor.app.islamic.PrayerTimes
+import com.nirvor.app.ui.money.monthNameBn
+import java.time.LocalDate
+import java.time.ZoneId
+
+/** Extra vertical spacing introduced by the new Islamic wide card below TodayCard. */
+private const val CARD_SHIFT = 216f
+
 /** Height of the home page in reference px (top of screen to top of the bottom bar). */
-private const val PAGE_HEIGHT = 1354f
+private const val PAGE_HEIGHT = 1354f + CARD_SHIFT
 
 /** Bottom of the status bar in the reference. Taller real status bars push the page down. */
 private const val REF_STATUS_BAR = 66f
@@ -98,6 +110,7 @@ fun HomeScreen(
     onOpenHabits: () -> Unit,
     onOpenNotes: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenIslamic: () -> Unit,
     onAddTask: () -> Unit,
     onAddReminder: () -> Unit,
     onAddHabit: () -> Unit,
@@ -126,7 +139,7 @@ fun HomeScreen(
     val photo by vm.photo.collectAsStateWithLifecycle()
     val tasks by vm.todayTasks.collectAsStateWithLifecycle()
     val upcoming by vm.upcoming.collectAsStateWithLifecycle()
-    val expenses by vm.todayExpenses.collectAsStateWithLifecycle()
+    val monthExpenses by vm.thisMonthExpenses.collectAsStateWithLifecycle()
     val habits by vm.habits.collectAsStateWithLifecycle()
     val doneHabits by vm.doneHabitIds.collectAsStateWithLifecycle()
     val streak by vm.streak.collectAsStateWithLifecycle()
@@ -183,9 +196,10 @@ fun HomeScreen(
                 onDate = onOpenTasks,
                 onHabits = onOpenHabits,
             )
+            IslamicTodayCard(ref, date = now.toLocalDate(), onClick = onOpenIslamic)
             TasksCard(ref, tasks, onToggle = { vm.toggleTask(it) }, onViewAll = onOpenTasks, onAdd = onAddTask)
             RemindersCard(ref, upcoming, today = now.toLocalDate().toEpochDay(), onViewAll = onOpenReminders, onAdd = onAddReminder)
-            ExpenseCard(ref, expenses, onViewAll = onOpenMoney)
+            ExpenseCard(ref, monthExpenses, monthName = monthNameBn(now.monthValue), onViewAll = onOpenMoney)
             HabitCard(ref, habits, doneHabits, onToggle = { vm.toggleHabit(it) }, onViewAll = onOpenHabits, onAdd = onAddHabit)
             NotesCard(ref, notes.firstOrNull(), onClick = onOpenNotes)
         }
@@ -545,6 +559,103 @@ fun reminderGlyph(key: String): Glyph = when (key) {
     else -> Glyph.Bell
 }
 
+// ---------------------------------------------------------------- Islamic Wide Card (Today)
+
+@Composable
+private fun IslamicTodayCard(ref: Ref, date: LocalDate, onClick: () -> Unit) {
+    val context = LocalContext.current
+    val hijri = remember(date) { Hijri.of(date) }
+    val islamicPrefs = remember { IslamicPrefs(context) }
+    val dayTimes = remember(date) {
+        islamicPrefs.times(date) ?: PrayerTimes.day(date, 23.8103, 90.4125, ZoneId.systemDefault())
+    }
+    val shape = RoundedCornerShape(22.r)
+    Box(
+        Modifier
+            .at(ref, 21, 532.5)
+            .size(728.r, 196.r)
+            .cardSurface(
+                shape,
+                Brush.verticalGradient(listOf(Color.White, Color(0xFFF0FDF4))),
+                Color(0xFFBBF7D0),
+                1.2.r,
+                6.r,
+            )
+            .clip(shape)
+            .clickable(onClick = onClick)
+    )
+
+    HeaderIcon(ref, 57.5, 565.5, 46, Color(0xFF0E9F6E), Color(0xFF047857)) {
+        GlyphIcon(Glyph.MoonStar, Color.White, Modifier.size(26.r), strokeWidth = 2.0f)
+    }
+
+    RText("Islamic Times & Fasting", 19, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 96, 571.8))
+    val hijriSub = if (hijri.month == 9) "${hijri.text} · 🌙 পবিত্র মাহে রমজান" else hijri.text
+    RText(hijriSub, 14.5, FontWeight.Medium, Color(0xFF047857), Modifier.atBaseline(ref, 96, 597.5))
+
+    val fajrTime = Fmt.timeAt(dayTimes[Prayer.Fajr])
+    val maghribTime = Fmt.timeAt(dayTimes[Prayer.Maghrib])
+    val nowMillis = System.currentTimeMillis()
+
+    val nextBadge = when {
+        nowMillis < dayTimes[Prayer.Fajr] -> "পরবর্তী: ফজর ($fajrTime)"
+        nowMillis < dayTimes[Prayer.Sunrise] -> "সূর্যোদয়: ${Fmt.timeAt(dayTimes[Prayer.Sunrise])}"
+        nowMillis < dayTimes[Prayer.Dhuhr] -> "পরবর্তী: যোহর (${Fmt.timeAt(dayTimes[Prayer.Dhuhr])})"
+        nowMillis < dayTimes[Prayer.Asr] -> "পরবর্তী: আসর (${Fmt.timeAt(dayTimes[Prayer.Asr])})"
+        nowMillis < dayTimes[Prayer.Maghrib] -> {
+            val mins = ((dayTimes[Prayer.Maghrib] - nowMillis) / 60_000L).coerceAtLeast(1L)
+            "ইফতারের বাকি $mins মিনিট"
+        }
+        nowMillis < dayTimes[Prayer.Isha] -> "পরবর্তী: এশা (${Fmt.timeAt(dayTimes[Prayer.Isha])})"
+        else -> "পরবর্তী: ফজর ($fajrTime)"
+    }
+
+    Box(
+        Modifier
+            .at(ref, 462, 548)
+            .clip(RoundedCornerShape(20.r))
+            .background(Color(0xFFE6F4EA))
+            .border(1.r, Color(0xFFA7F3D0), RoundedCornerShape(20.r))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.r, vertical = 6.r),
+    ) {
+        RText(nextBadge, 13.5, FontWeight.SemiBold, Color(0xFF065F46))
+    }
+
+    // 4 Column Box inside
+    Box(
+        Modifier
+            .at(ref, 36, 614)
+            .size(698.r, 96.r)
+            .background(Color.White, RoundedCornerShape(14.r))
+            .border(1.r, Color(0xFFDCFCE7), RoundedCornerShape(14.r))
+    )
+    Box(Modifier.at(ref, 210, 626).size(1.2.r, 72.r).background(Color(0xFFE2E8F0)))
+    Box(Modifier.at(ref, 385, 626).size(1.2.r, 72.r).background(Color(0xFFE2E8F0)))
+    Box(Modifier.at(ref, 550, 626).size(1.2.r, 72.r).background(Color(0xFFE2E8F0)))
+
+    // Col 1: সেহরি শেষ (Fajr)
+    Box(Modifier.atCenter(ref, 54, 638).size(9.r).background(Color(0xFF10B981), CircleShape))
+    RText("সেহরি শেষ", 14, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 68, 642.5))
+    RText(fajrTime, 16, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 54, 682))
+
+    // Col 2: ইফতারের সময় (Maghrib)
+    Box(Modifier.atCenter(ref, 228, 638).size(9.r).background(Color(0xFFF97316), CircleShape))
+    RText("ইফতারের সময়", 14, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 242, 642.5))
+    RText(maghribTime, 16, FontWeight.Bold, Color(0xFFEA580C), Modifier.atBaseline(ref, 228, 682))
+
+    // Col 3: যোহর / নামাজের সময়
+    val dhuhr = Fmt.timeAt(dayTimes[Prayer.Dhuhr])
+    Box(Modifier.atCenter(ref, 403, 638).size(9.r).background(Color(0xFF2563EB), CircleShape))
+    RText("যোহরের সময়", 14, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 417, 642.5))
+    RText(dhuhr, 16, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 403, 682))
+
+    // Col 4: ইসলামিক টুলস (কিবলা ও কুরআন)
+    Box(Modifier.atCenter(ref, 568, 638).size(9.r).background(Color(0xFF8B5CF6), CircleShape))
+    RText("টুলস ও দোয়া", 14, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, 582, 642.5))
+    RText("কিবলা · কুরআন", 14.5, FontWeight.SemiBold, Color(0xFF047857), Modifier.atBaseline(ref, 568, 682))
+}
+
 // ---------------------------------------------------------------- Today's Tasks
 
 @Composable
@@ -558,30 +669,30 @@ private fun TasksCard(
     val shape = RoundedCornerShape(18.r)
     Box(
         Modifier
-            .at(ref, 15.5, 532.5)
+            .at(ref, 15.5, 532.5 + CARD_SHIFT)
             .size(371.5.r, 391.r)
             .cardSurface(shape, SolidColor(C.TasksBg), C.TasksBorder, 1.2.r, 4.r)
     )
-    HeaderIcon(ref, 57.5, 575, 46, C.TaskGreenA, C.TaskGreenB) {
+    HeaderIcon(ref, 57.5, 575 + CARD_SHIFT, 46, C.TaskGreenA, C.TaskGreenB) {
         GlyphIcon(Glyph.Check, Color.White, Modifier.size(28.r), strokeWidth = 2.6f)
     }
-    RText("Today's Tasks", 19.5, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 96, 581.6))
-    ViewAll(ref, 301.5, 578.6, 14, C.TaskViewAll, C.TaskViewAllChevron, 365.5, 573.8, onViewAll)
+    RText("Today's Tasks", 19.5, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 96, 581.6 + CARD_SHIFT))
+    ViewAll(ref, 301.5, 578.6 + CARD_SHIFT, 14, C.TaskViewAll, C.TaskViewAllChevron, 365.5, 573.8 + CARD_SHIFT, onViewAll)
 
     if (tasks.isEmpty()) {
         Box(
             Modifier
-                .atCenter(ref, 201, 675)
+                .atCenter(ref, 201, 675 + CARD_SHIFT)
                 .size(60.r)
                 .background(Color(0xFFE8F7F0), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             GlyphIcon(Glyph.Check, C.TaskGreenA, Modifier.size(28.r), strokeWidth = 2.6f)
         }
-        RText("আজকের কোনো কাজ নেই", 15, FontWeight.Medium, C.Hint, Modifier.atBaseline(ref, 201, 735, HAlign.Center))
+        RText("আজকের কোনো কাজ নেই", 15, FontWeight.Medium, C.Hint, Modifier.atBaseline(ref, 201, 735 + CARD_SHIFT, HAlign.Center))
         Box(
             Modifier
-                .atCenter(ref, 201, 785)
+                .atCenter(ref, 201, 785 + CARD_SHIFT)
                 .clip(RoundedCornerShape(20.r))
                 .background(Brush.horizontalGradient(listOf(C.TaskGreenA, C.TaskGreenB)))
                 .clickable(onClick = onAdd)
@@ -594,8 +705,8 @@ private fun TasksCard(
     }
 
     tasks.take(4).forEachIndexed { i, task ->
-        val titleBase = 640.5f + 73f * i
-        val timeBase = 667.1f + 73f * i
+        val titleBase = 640.5f + CARD_SHIFT + 73f * i
+        val timeBase = 667.1f + CARD_SHIFT + 73f * i
         Box(
             Modifier
                 .atCenter(ref, 55.5, titleBase - 3f)
@@ -633,7 +744,7 @@ private fun TasksCard(
             Modifier.atBaseline(ref, 91.5, timeBase),
         )
         if (i < minOf(tasks.size, 4) - 1) {
-            Box(Modifier.at(ref, 91, 684f + 73f * i).size(266.5.r, 1.2.r).background(C.TaskDivider))
+            Box(Modifier.at(ref, 91, 684f + CARD_SHIFT + 73f * i).size(266.5.r, 1.2.r).background(C.TaskDivider))
         }
     }
 }
@@ -651,30 +762,30 @@ private fun RemindersCard(
     val shape = RoundedCornerShape(18.r)
     Box(
         Modifier
-            .at(ref, 402, 532.5)
+            .at(ref, 402, 532.5 + CARD_SHIFT)
             .size(350.5.r, 391.r)
             .cardSurface(shape, SolidColor(C.RemBg), C.RemBorder, 1.2.r, 4.r)
     )
-    HeaderIcon(ref, 442, 575, 46, C.PurpleA, C.PurpleB) {
+    HeaderIcon(ref, 442, 575 + CARD_SHIFT, 46, C.PurpleA, C.PurpleB) {
         GlyphIcon(Glyph.Bell, Color.White, Modifier.size(26.r))
     }
-    RText("Reminders", 19.5, FontWeight.Bold, C.InkNavy, Modifier.atBaseline(ref, 478, 581.6))
-    ViewAll(ref, 667, 578.6, 14, C.RemViewAll, C.RemViewAll, 728.5, 573.8, onViewAll)
+    RText("Reminders", 19.5, FontWeight.Bold, C.InkNavy, Modifier.atBaseline(ref, 478, 581.6 + CARD_SHIFT))
+    ViewAll(ref, 667, 578.6 + CARD_SHIFT, 14, C.RemViewAll, C.RemViewAll, 728.5, 573.8 + CARD_SHIFT, onViewAll)
 
     if (upcoming.isEmpty()) {
         Box(
             Modifier
-                .atCenter(ref, 577, 675)
+                .atCenter(ref, 577, 675 + CARD_SHIFT)
                 .size(60.r)
                 .background(Color(0xFFF3EDFD), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             GlyphIcon(Glyph.Bell, C.PurpleA, Modifier.size(28.r))
         }
-        RText("কোনো রিমাইন্ডার নেই", 15, FontWeight.Medium, C.Hint, Modifier.atBaseline(ref, 577, 735, HAlign.Center))
+        RText("কোনো রিমাইন্ডার নেই", 15, FontWeight.Medium, C.Hint, Modifier.atBaseline(ref, 577, 735 + CARD_SHIFT, HAlign.Center))
         Box(
             Modifier
-                .atCenter(ref, 577, 785)
+                .atCenter(ref, 577, 785 + CARD_SHIFT)
                 .clip(RoundedCornerShape(20.r))
                 .background(Brush.horizontalGradient(listOf(C.PurpleA, C.PurpleB)))
                 .clickable(onClick = onAdd)
@@ -688,7 +799,7 @@ private fun RemindersCard(
 
     val shown = upcoming.take(4)
     shown.forEachIndexed { i, item ->
-        val cy = 661f + 72f * i
+        val cy = 661f + CARD_SHIFT + 72f * i
         Box(
             Modifier
                 .at(ref, 410, cy - 34f)
@@ -728,43 +839,48 @@ private fun RemindersCard(
     }
 }
 
-// ---------------------------------------------------------------- Today's Expense
+// ---------------------------------------------------------------- Monthly Expense
 
 @Composable
-private fun ExpenseCard(ref: Ref, expenses: List<ExpenseEntity>, onViewAll: () -> Unit) {
+private fun ExpenseCard(
+    ref: Ref,
+    expenses: List<ExpenseEntity>,
+    monthName: String,
+    onViewAll: () -> Unit,
+) {
     val shape = RoundedCornerShape(18.r)
     Box(
         Modifier
-            .at(ref, 15.5, 940.5)
+            .at(ref, 15.5, 940.5 + CARD_SHIFT)
             .size(370.5.r, 275.r)
             .cardSurface(shape, Brush.verticalGradient(listOf(C.ExpBgTop, C.ExpBgBottom)), C.ExpBorder, 1.2.r, 4.r)
     )
-    HeaderIcon(ref, 57.5, 980.5, 46, C.OrangeIconA, C.OrangeIconB) {
+    HeaderIcon(ref, 57.5, 980.5 + CARD_SHIFT, 46, C.OrangeIconA, C.OrangeIconB) {
         GlyphIcon(Glyph.Wallet, Color.White, Modifier.size(26.r), accent = Color(0xFFF96A31))
     }
-    RText("Today's Expense", 19, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 96, 985.8))
-    ViewAll(ref, 302, 985.9, 14.5, C.ViewAllGrey, C.ViewAllGreyChevron, 365.5, 980.8, onViewAll)
+    RText("Monthly Expense", 19, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 96, 985.8 + CARD_SHIFT))
+    ViewAll(ref, 302, 985.9 + CARD_SHIFT, 14.5, C.ViewAllGrey, C.ViewAllGreyChevron, 365.5, 980.8 + CARD_SHIFT, onViewAll)
 
     val total = expenses.sumOf { it.amount }
     Row(
-        Modifier.atBaseline(ref, 33, 1056.3),
+        Modifier.atBaseline(ref, 33, 1056.3 + CARD_SHIFT),
         verticalAlignment = Alignment.Bottom,
     ) {
         RText("৳", 31, FontWeight.Bold, Color(0xFFEA580C))
         Spacer(Modifier.width(6.r))
         RText(Fmt.money(total), 31, FontWeight.Bold, C.Ink, Modifier.widthIn(max = 280.r))
     }
-    RText("আজকের মোট খরচ", 15, FontWeight.Normal, C.ExpSub, Modifier.atBaseline(ref, 33, 1087.5))
+    RText("$monthName মাসের মোট খরচ", 15, FontWeight.Normal, C.ExpSub, Modifier.atBaseline(ref, 33, 1087.5 + CARD_SHIFT))
 
     Box(
         Modifier
-            .at(ref, 28, 1110)
+            .at(ref, 28, 1110 + CARD_SHIFT)
             .size(345.5.r, 91.5.r)
             .background(Color.White, RoundedCornerShape(14.r))
             .border(1.r, C.InnerBorder, RoundedCornerShape(14.r))
     )
-    Box(Modifier.at(ref, 134, 1131).size(1.2.r, 50.r).background(C.InnerDivider))
-    Box(Modifier.at(ref, 258, 1131).size(1.2.r, 50.r).background(C.InnerDivider))
+    Box(Modifier.at(ref, 134, 1131 + CARD_SHIFT).size(1.2.r, 50.r).background(C.InnerDivider))
+    Box(Modifier.at(ref, 258, 1131 + CARD_SHIFT).size(1.2.r, 50.r).background(C.InnerDivider))
 
     val columns = listOf(
         Triple(ExpenseCategory.Food, 44f, 59f),
@@ -773,10 +889,10 @@ private fun ExpenseCard(ref: Ref, expenses: List<ExpenseEntity>, onViewAll: () -
     )
     columns.forEach { (cat, dotX, textX) ->
         val sum = expenses.filter { ExpenseCategory.of(it.category) == cat }.sumOf { it.amount }
-        Box(Modifier.atCenter(ref, dotX, 1143).size(9.5.r).background(Color(cat.color), CircleShape))
-        RText(cat.label, 14, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, textX, 1148.5))
-        RText("৳", 14.5, FontWeight.Medium, C.CatAmount, Modifier.atBaseline(ref, textX, 1176.7))
-        RText(Fmt.money(sum), 14.5, FontWeight.Medium, C.CatAmount, Modifier.atBaseline(ref, textX + 15f, 1176.7).width(82.r))
+        Box(Modifier.atCenter(ref, dotX, 1143 + CARD_SHIFT).size(9.5.r).background(Color(cat.color), CircleShape))
+        RText(cat.label, 14, FontWeight.Normal, C.CatLabel, Modifier.atBaseline(ref, textX, 1148.5 + CARD_SHIFT))
+        RText("৳", 14.5, FontWeight.Medium, C.CatAmount, Modifier.atBaseline(ref, textX, 1176.7 + CARD_SHIFT))
+        RText(Fmt.money(sum), 14.5, FontWeight.Medium, C.CatAmount, Modifier.atBaseline(ref, textX + 15f, 1176.7 + CARD_SHIFT).width(82.r))
     }
 }
 
@@ -794,20 +910,20 @@ private fun HabitCard(
     val shape = RoundedCornerShape(18.r)
     Box(
         Modifier
-            .at(ref, 401, 940.5)
+            .at(ref, 401, 940.5 + CARD_SHIFT)
             .size(351.5.r, 275.r)
             .cardSurface(shape, SolidColor(C.HabBg), C.HabBorder, 1.2.r, 4.r)
     )
-    HeaderIcon(ref, 441.5, 980.5, 46, C.HabGreenA, C.HabGreenB) {
+    HeaderIcon(ref, 441.5, 980.5 + CARD_SHIFT, 46, C.HabGreenA, C.HabGreenB) {
         GlyphIcon(Glyph.Target, Color.White, Modifier.size(28.r), strokeWidth = 1.9f)
     }
-    RText("Today's Habit", 19, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 480, 986.6))
-    ViewAll(ref, 667, 985.9, 14.5, C.ViewAllGrey, C.ViewAllGreyChevron, 731, 980.8, onViewAll)
+    RText("Today's Habit", 19, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 480, 986.6 + CARD_SHIFT))
+    ViewAll(ref, 667, 985.9 + CARD_SHIFT, 14.5, C.ViewAllGrey, C.ViewAllGreyChevron, 731, 980.8 + CARD_SHIFT, onViewAll)
 
     val total = habits.size
     val doneCount = habits.count { it.id in done }
     val ringStroke = 9.5f
-    Canvas(Modifier.atCenter(ref, 475.5, 1087).size(113.r)) {
+    Canvas(Modifier.atCenter(ref, 475.5, 1087 + CARD_SHIFT).size(113.r)) {
         val sw = ringStroke * ref.px
         val radius = size.minDimension / 2f - sw / 2f
         val topLeft = Offset(center.x - radius, center.y - radius)
@@ -826,14 +942,14 @@ private fun HabitCard(
             )
         }
     }
-    RText("$doneCount/$total", 24, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 475.5, 1093.1, HAlign.Center))
-    RText("Completed", 10.5, FontWeight.Normal, C.RingLabel, Modifier.atBaseline(ref, 476, 1110.8, HAlign.Center))
+    RText("$doneCount/$total", 24, FontWeight.Bold, C.Ink, Modifier.atBaseline(ref, 475.5, 1093.1 + CARD_SHIFT, HAlign.Center))
+    RText("Completed", 10.5, FontWeight.Normal, C.RingLabel, Modifier.atBaseline(ref, 476, 1110.8 + CARD_SHIFT, HAlign.Center))
 
     if (habits.isEmpty()) {
-        RText("কোনো হ্যাবিট নেই", 14.5, FontWeight.Medium, C.Hint, Modifier.atBaseline(ref, 655, 1070, HAlign.Center))
+        RText("কোনো হ্যাবিট নেই", 14.5, FontWeight.Medium, C.Hint, Modifier.atBaseline(ref, 655, 1070 + CARD_SHIFT, HAlign.Center))
         Box(
             Modifier
-                .atCenter(ref, 655, 1110)
+                .atCenter(ref, 655, 1110 + CARD_SHIFT)
                 .clip(RoundedCornerShape(16.r))
                 .background(Brush.horizontalGradient(listOf(C.HabGreenA, C.HabGreenB)))
                 .clickable(onClick = onAdd)
@@ -846,7 +962,7 @@ private fun HabitCard(
     }
 
     habits.take(5).forEachIndexed { i, habit ->
-        val cy = 1031.5f + 36f * i
+        val cy = 1031.5f + CARD_SHIFT + 36f * i
         val isDone = habit.id in done
         Box(
             Modifier
@@ -877,7 +993,7 @@ private fun NotesCard(ref: Ref, latest: NoteEntity?, onClick: () -> Unit) {
     val shape = RoundedCornerShape(18.r)
     Box(
         Modifier
-            .at(ref, 15.5, 1232)
+            .at(ref, 15.5, 1232 + CARD_SHIFT)
             .size(574.r, 104.5.r)
             .cardSurface(shape, SolidColor(C.NotesBg), C.NotesBorder, 1.2.r, 3.r)
             .clip(shape)
@@ -885,20 +1001,20 @@ private fun NotesCard(ref: Ref, latest: NoteEntity?, onClick: () -> Unit) {
     )
     Box(
         Modifier
-            .at(ref, 38, 1247)
+            .at(ref, 38, 1247 + CARD_SHIFT)
             .size(38.r)
             .background(Brush.linearGradient(listOf(C.NotesIconA, C.NotesIconB)), RoundedCornerShape(10.r)),
         contentAlignment = Alignment.Center,
     ) {
         GlyphIcon(Glyph.Note, Color.White, Modifier.size(24.r), strokeWidth = 1.9f)
     }
-    RText("Quick Notes", 17, FontWeight.Bold, C.NotesTitle, Modifier.atBaseline(ref, 88, 1269.6))
-    GlyphIcon(Glyph.ChevronRight, C.NotesChevron, Modifier.atCenter(ref, 554, 1264.5).size(20.r), strokeWidth = 2.0f)
+    RText("Quick Notes", 17, FontWeight.Bold, C.NotesTitle, Modifier.atBaseline(ref, 88, 1269.6 + CARD_SHIFT))
+    GlyphIcon(Glyph.ChevronRight, C.NotesChevron, Modifier.atCenter(ref, 554, 1264.5 + CARD_SHIFT).size(20.r), strokeWidth = 2.0f)
     val text = latest?.text?.lineSequence()?.firstOrNull { it.isNotBlank() }
     if (text != null) {
-        RText(text, 14, FontWeight.Normal, C.NotesText, Modifier.atBaseline(ref, 88, 1301.5).width(470.r))
+        RText(text, 14, FontWeight.Normal, C.NotesText, Modifier.atBaseline(ref, 88, 1301.5 + CARD_SHIFT).width(470.r))
     } else {
-        RText("নোট লিখতে এখানে ট্যাপ করুন...", 14, FontWeight.Normal, Color(0xFF9A8F72), Modifier.atBaseline(ref, 88, 1301.5))
+        RText("নোট লিখতে এখানে ট্যাপ করুন...", 14, FontWeight.Normal, Color(0xFF9A8F72), Modifier.atBaseline(ref, 88, 1301.5 + CARD_SHIFT))
     }
 }
 

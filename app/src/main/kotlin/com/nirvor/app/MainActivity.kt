@@ -24,6 +24,8 @@ class MainActivity : ComponentActivity() {
         const val EXTRA_URL = "nirvor.url"
         const val OPEN_DOWNLOADS = "downloads"
         const val OPEN_BROWSER = "browser"
+        const val OPEN_MONEY = "money"
+        const val OPEN_ISLAMIC = "islamic"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,6 +67,8 @@ class MainActivity : ComponentActivity() {
         when (intent?.getStringExtra(EXTRA_OPEN)) {
             OPEN_DOWNLOADS -> AppNav.request.value = NavRequest.Downloads
             OPEN_BROWSER -> AppNav.request.value = NavRequest.Browser(intent.getStringExtra(EXTRA_URL))
+            OPEN_MONEY -> AppNav.request.value = NavRequest.Money
+            OPEN_ISLAMIC -> AppNav.request.value = NavRequest.Islamic
         }
     }
 }

@@ -161,8 +161,8 @@ fun MoneyScreen(
             MonthSwitcher(
                 month = month,
                 isCurrent = isCurrent,
-                canPrev = month > firstMonth,
-                canNext = month < lastMonth,
+                canPrev = true,
+                canNext = month < thisMonth.plusYears(5),
                 onPrev = { picked = month.minusMonths(1).toString() },
                 onNext = { picked = month.plusMonths(1).toString() },
                 onThisMonth = { picked = "" },
@@ -598,10 +598,17 @@ private fun EntryCard(e: MoneyEntry, onDelete: () -> Unit) {
             Spacer(Modifier.width(16.r))
             Column(Modifier.weight(1f)) {
                 RText(e.cat.label, 22, FontWeight.Medium, C.Ink)
-                val sub = listOfNotNull(e.note.ifBlank { null }, if (e.auto) "🔁 মাসিক (অটো)" else null).joinToString(" · ")
+                val timeStr = if (e.createdAt > 0L) Fmt.timeAt(e.createdAt) else ""
+                val dateStr = Fmt.date(e.epochDay)
+                val dateTimeStr = if (timeStr.isNotEmpty()) "$dateStr  •  $timeStr" else dateStr
+                val sub = listOfNotNull(
+                    e.note.ifBlank { null },
+                    if (e.auto) "🔁 মাসিক (অটো)" else null,
+                    dateTimeStr,
+                ).joinToString("  ·  ")
                 if (sub.isNotEmpty()) {
                     Spacer(Modifier.height(4.r))
-                    RText(sub, 18, FontWeight.Normal, C.Time, maxLines = 2)
+                    RText(sub, 16.5, FontWeight.Normal, C.Time, maxLines = 2)
                 }
             }
             Spacer(Modifier.width(10.r))

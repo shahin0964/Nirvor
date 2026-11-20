@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
@@ -269,6 +270,63 @@ object AppUpdater {
         } catch (e: Exception) {
             e.printStackTrace()
             false
+        }
+    }
+
+    /**
+     * Cleans up downloaded update APK files and temporary download chunks
+     * immediately after an update is installed or upon app launch so that
+     * obsolete installer packages do not clutter the device or file manager.
+     */
+    fun cleanupOldApks(context: Context) {
+        try {
+            // 1. Delete all update APKs & tmp files in internal cache
+            val updatesDir = File(context.cacheDir, "updates")
+            if (updatesDir.exists()) {
+                updatesDir.listFiles()?.forEach { file ->
+                    try {
+                        file.delete()
+                    } catch (_: Exception) {}
+                }
+                try {
+                    updatesDir.delete()
+                } catch (_: Exception) {}
+            }
+
+            // 2. Delete update files in external cache if any
+            context.externalCacheDir?.let { extCache ->
+                val extUpdates = File(extCache, "updates")
+                if (extUpdates.exists()) {
+                    extUpdates.listFiles()?.forEach { file ->
+                        try {
+                            file.delete()
+                        } catch (_: Exception) {}
+                    }
+                    try {
+                        extUpdates.delete()
+                    } catch (_: Exception) {}
+                }
+            }
+
+            // 3. Clean up any lingering Nirvor update APKs in public Downloads directory
+            try {
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                if (downloadsDir != null && downloadsDir.exists()) {
+                    downloadsDir.listFiles()?.forEach { file ->
+                        val name = file.name
+                        if (file.isFile && name.endsWith(".apk", ignoreCase = true)) {
+                            if (name.startsWith("Nirvor", ignoreCase = true) ||
+                                name.startsWith("app-release", ignoreCase = true)) {
+                                try {
+                                    file.delete()
+                                } catch (_: Exception) {}
+                            }
+                        }
+                    }
+                }
+            } catch (_: Exception) {}
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

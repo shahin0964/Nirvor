@@ -74,8 +74,12 @@ import com.nirvor.app.ui.tools.TGreen
 import com.nirvor.app.ui.tools.ToolScaffold
 import com.nirvor.app.ui.tools.camera.CameraFrame
 import com.nirvor.app.ui.tools.camera.CameraGate
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import com.nirvor.app.ui.tools.camera.CameraView
 import com.nirvor.app.ui.tools.camera.CameraPanel
 import com.nirvor.app.ui.tools.camera.PanelButton
+import com.nirvor.app.ui.tools.camera.Shutter
 import kotlinx.coroutines.delay
 import kotlin.math.hypot
 
@@ -92,28 +96,32 @@ fun ArMeasureTool(mode: ArMode, onBack: () -> Unit) {
         val context = LocalContext.current
         var status by remember { mutableStateOf(ArStatus.Checking) }
         var error by remember { mutableStateOf<String?>(null) }
-        var tilt by remember { mutableStateOf(false) }
+        var cameraMode by remember { mutableStateOf(false) }
 
         fun check() {
-            val a = ArCoreApk.getInstance().checkAvailability(context)
-            status = when {
-                a == ArCoreApk.Availability.SUPPORTED_INSTALLED -> ArStatus.Ready
-                a == ArCoreApk.Availability.SUPPORTED_APK_TOO_OLD || a == ArCoreApk.Availability.SUPPORTED_NOT_INSTALLED ->
-                    if (status == ArStatus.Installing) ArStatus.Installing else ArStatus.NeedInstall
-                a.isTransient -> ArStatus.Checking
-                else -> ArStatus.Unsupported
+            try {
+                val a = ArCoreApk.getInstance().checkAvailability(context)
+                status = when {
+                    a == ArCoreApk.Availability.SUPPORTED_INSTALLED -> ArStatus.Ready
+                    a == ArCoreApk.Availability.SUPPORTED_APK_TOO_OLD || a == ArCoreApk.Availability.SUPPORTED_NOT_INSTALLED ->
+                        if (status == ArStatus.Installing) ArStatus.Installing else ArStatus.NeedInstall
+                    a.isTransient -> ArStatus.Checking
+                    else -> ArStatus.Unsupported
+                }
+            } catch (_: Exception) {
+                status = ArStatus.Unsupported
             }
         }
 
         LaunchedEffect(Unit) {
-            repeat(25) {
+            repeat(8) {
                 check()
                 if (status != ArStatus.Checking) return@LaunchedEffect
-                delay(300)
+                delay(200)
             }
             if (status == ArStatus.Checking) status = ArStatus.Unsupported
         }
-        // Back from the Play Store after installing "Google Play Services for AR".
+
         LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
             if (status == ArStatus.Installing || status == ArStatus.NeedInstall) {
                 val activity = context.findActivity()
@@ -122,56 +130,86 @@ fun ArMeasureTool(mode: ArMode, onBack: () -> Unit) {
                         if (ArCoreApk.getInstance().requestInstall(activity, false) == ArCoreApk.InstallStatus.INSTALLED) {
                             status = ArStatus.Ready
                         }
-                    } catch (e: Exception) {
-                        // still not installed
+                    } catch (_: Exception) {
                     }
                 }
             }
         }
 
-        if (tilt) {
-            TiltMeasureTool(if (mode == ArMode.Height) TiltGoal.Height else TiltGoal.Distance) { tilt = false }
-        } else when (status) {
-            ArStatus.Ready -> if (error == null) {
-                ArScreen(mode, onBack, onTilt = if (mode == ArMode.Distance || mode == ArMode.Height) ({ tilt = true }) else null) { error = it }
+        if (cameraMode || status == ArStatus.Unsupported || error != null) {
+            if (mode == ArMode.Distance || mode == ArMode.Height) {
+                TiltMeasureTool(if (mode == ArMode.Height) TiltGoal.Height else TiltGoal.Distance, onBack)
             } else {
-                Message(mode, onBack, "AR চালু করা গেল না", error ?: "", fallback = true) { tilt = true }
+                CameraCrosshairMeasureScreen(
+                    mode = mode,
+                    onBack = onBack,
+                    onSwitchToAr = if (status == ArStatus.Ready) ({ cameraMode = false; error = null }) else null
+                )
             }
-            ArStatus.Checking -> Message(mode, onBack, "দেখছি এই ফোনে AR চলে কিনা…", "", fallback = false) { tilt = true }
-            ArStatus.NeedInstall, ArStatus.Installing -> ToolScaffold(mode.title, mode.bn, onBack) {
-                ListCard {
-                    RText("📦 Google Play Services for AR লাগবে", 21, FontWeight.SemiBold, C.Ink, maxLines = 2)
-                    Spacer(Modifier.height(6.r))
-                    RText(
-                        "ক্যামেরা দিয়ে আসল মাপ নিতে Google-এর ফ্রি AR অ্যাপটা (ARCore) একবার ইনস্টল করতে হবে। ইনস্টল হলে এখানে ফিরে আসুন।",
-                        17,
-                        FontWeight.Normal,
-                        C.StatLabel,
-                        maxLines = 4,
-                        lineHeight = 25,
-                    )
-                    Spacer(Modifier.height(16.r))
-                    RoundButton("ইনস্টল করুন", TGreen, Modifier.fillMaxWidth()) {
-                        val activity = context.findActivity() ?: return@RoundButton
-                        try {
-                            when (ArCoreApk.getInstance().requestInstall(activity, true)) {
-                                ArCoreApk.InstallStatus.INSTALLED -> status = ArStatus.Ready
-                                else -> status = ArStatus.Installing
+        } else when (status) {
+            ArStatus.Ready -> {
+                ArScreen(
+                    mode = mode,
+                    onBack = onBack,
+                    onTilt = { cameraMode = true },
+                    onError = {
+                        error = it
+                        cameraMode = true
+                    }
+                )
+            }
+            ArStatus.Checking -> {
+                // Show universal camera viewfinder while checking so user NEVER sees a blank screen
+                if (mode == ArMode.Distance || mode == ArMode.Height) {
+                    TiltMeasureTool(if (mode == ArMode.Height) TiltGoal.Height else TiltGoal.Distance, onBack)
+                } else {
+                    CameraCrosshairMeasureScreen(mode, onBack)
+                }
+            }
+            ArStatus.NeedInstall, ArStatus.Installing -> {
+                ToolScaffold(mode.title, mode.bn, onBack) {
+                    ListCard {
+                        RText("📦 Google Play Services for AR লাগবে", 21, FontWeight.SemiBold, C.Ink, maxLines = 2)
+                        Spacer(Modifier.height(6.r))
+                        RText(
+                            "ক্যামেরা দিয়ে আসল মাপ নিতে Google-এর ফ্রি AR অ্যাপটা (ARCore) একবার ইনস্টল করতে হবে। অথবা নিচের বাটন দিয়ে ক্যামেরা দিয়ে সরাসরি মাপুন।",
+                            17,
+                            FontWeight.Normal,
+                            C.StatLabel,
+                            maxLines = 4,
+                            lineHeight = 25,
+                        )
+                        Spacer(Modifier.height(16.r))
+                        RoundButton("ARCore ইনস্টল করুন", TGreen, Modifier.fillMaxWidth()) {
+                            val activity = context.findActivity() ?: return@RoundButton
+                            try {
+                                when (ArCoreApk.getInstance().requestInstall(activity, true)) {
+                                    ArCoreApk.InstallStatus.INSTALLED -> status = ArStatus.Ready
+                                    else -> status = ArStatus.Installing
+                                }
+                            } catch (_: Exception) {
+                                status = ArStatus.Unsupported
                             }
-                        } catch (e: Exception) {
-                            status = ArStatus.Unsupported
+                        }
+                    }
+                    ListCard {
+                        RText("📷 সরাসরি ক্যামেরা দিয়ে মাপুন", 19, FontWeight.SemiBold, C.Ink)
+                        Spacer(Modifier.height(6.r))
+                        RText("ARCore ইনস্টল না করেও ফোনের ক্যামেরা ও সেন্সর দিয়ে সরাসরি মাপুন।", 16, FontWeight.Normal, C.StatLabel)
+                        Spacer(Modifier.height(12.r))
+                        RoundButton("ক্যামেরায় চালু করুন", Color(0xFF2563EB), Modifier.fillMaxWidth()) {
+                            cameraMode = true
                         }
                     }
                 }
-                if (mode.tiltable()) TiltCard { tilt = true } else FallbackCard(mode)
             }
-            ArStatus.Unsupported -> Message(
-                mode,
-                onBack,
-                "এই ফোনে AR (ARCore) চলে না",
-                "ক্যামেরায় পয়েন্ট বসিয়ে মাপতে Google-এর AR সাপোর্ট লাগে।",
-                fallback = true,
-            ) { tilt = true }
+            ArStatus.Unsupported -> {
+                if (mode == ArMode.Distance || mode == ArMode.Height) {
+                    TiltMeasureTool(if (mode == ArMode.Height) TiltGoal.Height else TiltGoal.Distance, onBack)
+                } else {
+                    CameraCrosshairMeasureScreen(mode, onBack)
+                }
+            }
         }
     }
 }
@@ -267,6 +305,14 @@ private fun ArScreen(mode: ArMode, onBack: () -> Unit, onTilt: (() -> Unit)?, on
             glView.setEGLConfigChooser(8, 8, 8, 8, 16, 0)
             glView.setRenderer(r)
             glView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+            if (owner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                try {
+                    session.resume()
+                    glView.onResume()
+                } catch (e: Exception) {
+                    onError("ক্যামেরা চালু করা গেল না: ${e.message}")
+                }
+            }
             val observer = LifecycleEventObserver { _, event ->
                 when (event) {
                     Lifecycle.Event.ON_RESUME -> try {
@@ -592,4 +638,127 @@ private fun DrawScope.drawOverlay(f: ArFrame, mode: ArMode, tm: TextMeasurer, st
         val layout = tm.measure(f.surface, style.copy(fontSize = style.fontSize * 0.85f))
         drawText(layout, topLeft = Offset(c.x - layout.size.width / 2f, c.y + 56f))
     }
+}
+
+/** Universal camera measuring screen for devices without Google ARCore. */
+@Composable
+private fun CameraCrosshairMeasureScreen(
+    mode: ArMode,
+    onBack: () -> Unit,
+    onSwitchToAr: (() -> Unit)? = null,
+) {
+    KeepScreenOn()
+    val haptic = LocalHapticFeedback.current
+    val points = remember { androidx.compose.runtime.mutableStateListOf<Offset>() }
+    var viewSize by remember { mutableStateOf(Size.Zero) }
+
+    CameraFrame(
+        mode.title,
+        onBack,
+        topRight = {
+            if (onSwitchToAr != null) {
+                PanelButton("📦 AR মোড", onSwitchToAr)
+            }
+        }
+    ) {
+        CameraView(
+            Modifier.fillMaxSize(),
+            onPreviewView = { pv ->
+                viewSize = Size(pv.width.toFloat(), pv.height.toFloat())
+            }
+        )
+
+        Canvas(
+            Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        if (points.size < mode.maxPoints) {
+                            points.add(offset)
+                        }
+                    }
+                }
+        ) {
+            val c = center
+            // Center reticle
+            drawLine(Color.White.copy(alpha = 0.6f), Offset(c.x - 36f, c.y), Offset(c.x + 36f, c.y), 2.5f)
+            drawLine(Color.White.copy(alpha = 0.6f), Offset(c.x, c.y - 36f), Offset(c.x, c.y + 36f), 2.5f)
+            drawCircle(Color(0xFF34D399).copy(alpha = 0.35f), 24f, c)
+            drawCircle(Color.White, 4f, c)
+
+            // Placed points and connecting lines
+            for (i in points.indices) {
+                val p = points[i]
+                drawCircle(Color.White, 14f, p)
+                drawCircle(Color(0xFF0BA765), 10f, p)
+                if (i > 0) {
+                    val prev = points[i - 1]
+                    drawLine(Color(0xFF34D399), prev, p, 4f)
+                }
+            }
+            if (mode == ArMode.Area && points.size >= 3) {
+                drawLine(Color(0xFF34D399), points.last(), points.first(), 4f)
+            }
+        }
+
+        CameraPanel(Modifier.align(Alignment.BottomCenter)) {
+            val readoutText = when (mode) {
+                ArMode.Angle -> {
+                    if (points.size >= 3) {
+                        val ang = computeAngle(points[0], points[1], points[2])
+                        String.format(java.util.Locale.US, "%.1f°", ang)
+                    } else "৩টি বিন্দুতে ট্যাপ করুন (${points.size}/3)"
+                }
+                ArMode.Points -> {
+                    if (points.size >= 2) {
+                        "${points.size}টি পয়েন্ট চিহ্নিত"
+                    } else "পয়েন্ট দিতে স্ক্রিনে ট্যাপ করুন (${points.size})"
+                }
+                ArMode.Area -> {
+                    if (points.size >= 3) {
+                        "${points.size} কোণার জায়গা চিহ্নিত"
+                    } else "কোণায় ট্যাপ করে পয়েন্ট দিন (${points.size})"
+                }
+                ArMode.Wall -> {
+                    if (points.size >= 4) {
+                        "দেয়ালের ৪ কোণা চিহ্নিত"
+                    } else "দেয়ালের কোণাগুলোতে ট্যাপ করুন (${points.size}/4)"
+                }
+                else -> "${points.size}টি পয়েন্ট"
+            }
+            RText(readoutText, 26, FontWeight.Bold, Color.White)
+            Spacer(Modifier.height(4.r))
+            RText("স্ক্রিনে ট্যাপ করে অথবা নিচের বাটনে পয়েন্ট চিহ্নিত করুন", 15, FontWeight.Normal, Color(0xFFB8C2D0))
+            Spacer(Modifier.height(14.r))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (points.isNotEmpty()) {
+                    PanelButton("মুছুন") { points.clear() }
+                    PanelButton("আগেরটা") { points.removeAt(points.size - 1) }
+                }
+                Shutter({
+                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                    val c = if (viewSize.width > 0f) Offset(viewSize.width / 2f, viewSize.height / 2f) else Offset(360f, 640f)
+                    if (points.size < mode.maxPoints) points.add(c)
+                })
+            }
+        }
+    }
+}
+
+private fun computeAngle(a: Offset, b: Offset, c: Offset): Double {
+    val v1x = a.x - b.x
+    val v1y = a.y - b.y
+    val v2x = c.x - b.x
+    val v2y = c.y - b.y
+    val dot = v1x * v2x + v1y * v2y
+    val mag1 = kotlin.math.sqrt(v1x * v1x + v1y * v1y)
+    val mag2 = kotlin.math.sqrt(v2x * v2x + v2y * v2y)
+    if (mag1 <= 1e-4f || mag2 <= 1e-4f) return 0.0
+    val cosTheta = (dot / (mag1 * mag2)).toDouble().coerceIn(-1.0, 1.0)
+    return Math.toDegrees(kotlin.math.acos(cosTheta))
 }

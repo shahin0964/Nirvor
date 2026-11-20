@@ -150,5 +150,42 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <!-- Daily Auto Backup Receiver (11:30 PM) -->
+        <receiver
+            android:name=".backup.AutoBackupReceiver"
+            android:exported="false" />
+
+        <!-- Home Screen Transparent Widget (All-in-one: Expense, Ramadan & Prayer) -->
+        <receiver
+            android:name=".widget.NirvorWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/nirvor_widget_info" />
+        </receiver>
+
+        <!-- Islamic & Ramadan Transparent Widget -->
+        <receiver
+            android:name=".widget.NirvorIslamicWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/nirvor_islamic_widget_info" />
+        </receiver>
+        <!-- Clean up downloaded update APK immediately after update finishes -->
+        <receiver
+            android:name=".updater.PackageReplacedReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

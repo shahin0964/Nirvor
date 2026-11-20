@@ -61,6 +61,7 @@ import com.nirvor.app.ui.screens.ProfileScreen
 import com.nirvor.app.ui.screens.RemindersScreen
 import com.nirvor.app.ui.screens.AboutScreen
 import com.nirvor.app.ui.screens.AppUpdateScreen
+import com.nirvor.app.ui.screens.BackupScreen
 import com.nirvor.app.ui.screens.DownloadSettingsScreen
 import com.nirvor.app.ui.screens.PermissionsScreen
 import com.nirvor.app.ui.screens.SettingsScreen
@@ -105,6 +106,7 @@ enum class Page {
     Ledger, LedgerPerson, Installment,
     ToolBox, Tool,
     Islamic, IslamicItem,
+    Backup,
 }
 
 /** Pages where the green + button makes sense. */
@@ -176,6 +178,11 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
             null -> return@LaunchedEffect
             NavRequest.Downloads -> openPage(Page.Downloads)
             is NavRequest.Browser -> openBrowser(r.url)
+            NavRequest.Money -> {
+                pageStack = ""
+                tab = Tab.Money
+            }
+            NavRequest.Islamic -> openPage(Page.Islamic)
         }
         drawerState.close()
         AppNav.request.value = null
@@ -285,6 +292,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                         onOpenHabits = { openPage(Page.Habits) },
                         onOpenNotes = { openPage(Page.Notes) },
                         onOpenProfile = { openPage(Page.Profile) },
+                        onOpenIslamic = { openPage(Page.Islamic) },
                         onAddTask = { sheet = SheetKind.Task },
                         onAddReminder = { sheet = SheetKind.Reminder },
                         onAddHabit = { sheet = SheetKind.Habit },
@@ -311,6 +319,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                         onReminders = { openPage(Page.Reminders) },
                         onHabits = { openPage(Page.Habits) },
                         onNotes = { openPage(Page.Notes) },
+                        onBackup = { openPage(Page.Backup) },
                         onUpdate = { openPage(Page.AppUpdate) },
                     )
                 }
@@ -436,6 +445,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                 Page.WeatherSettings -> WeatherSettingsScreen(vm, listBottom, onBack = { goBack() })
                 Page.About -> AboutScreen(listBottom, onBack = { goBack() }, onUpdate = { openPage(Page.AppUpdate) })
                 Page.AppUpdate -> AppUpdateScreen(listBottom, onBack = { goBack() })
+                Page.Backup -> BackupScreen(listBottom, onBack = { goBack() })
 
                 Page.Downloads -> DownloadsScreen(
                     bottomPadding = listBottom,

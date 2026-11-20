@@ -71,6 +71,7 @@ fun MoreScreen(
     onReminders: () -> Unit,
     onHabits: () -> Unit,
     onNotes: () -> Unit,
+    onBackup: () -> Unit,
     onUpdate: () -> Unit,
 ) {
     PageScaffold("More", "ফিচার ও সেটিংস", onBack = null, bottomPadding = bottomPadding) {
@@ -84,6 +85,7 @@ fun MoreScreen(
         item { MenuRow(Glyph.Note, C.NotesIconA, C.NotesIconB, "Quick Notes", "নোট", onNotes) }
 
         item { SectionLabel("অ্যাপ ও সিস্টেম") }
+        item { MenuRow(Glyph.Folder, Color(0xFF0D9488), Color(0xFF0F766E), "Backup & Restore", "অফলাইন ও গুগল ড্রাইভ ব্যাকআপ", onBackup) }
         item { MenuRow(Glyph.Refresh, Color(0xFF2563EB), Color(0xFF1D4ED8), "App Update (OTA)", "নতুন ভার্সন আপডেট ও রিলিজ নোট", onUpdate) }
     }
 }

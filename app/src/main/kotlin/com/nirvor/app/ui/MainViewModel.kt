@@ -114,6 +114,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .flatMapLatest { db.expenseDao().forDay(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
+    val thisMonthExpenses: StateFlow<List<ExpenseEntity>> = combine(db.expenseDao().all(), now) { list, n ->
+        val ym = java.time.YearMonth.from(n)
+        val start = ym.atDay(1).toEpochDay()
+        val end = ym.atEndOfMonth().toEpochDay()
+        list.filter { it.epochDay in start..end }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
+
     val allExpenses: StateFlow<List<ExpenseEntity>> = db.expenseDao().all()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyList())
 
@@ -267,11 +274,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             db.expenseDao().insert(
                 ExpenseEntity(amount = amount, category = category, note = note.trim(), epochDay = epochDay)
             )
+            com.nirvor.app.widget.NirvorWidgetUpdater.updateAll(app)
         }
     }
 
     fun deleteExpense(e: ExpenseEntity) {
-        viewModelScope.launch { db.expenseDao().delete(e) }
+        viewModelScope.launch {
+            db.expenseDao().delete(e)
+            com.nirvor.app.widget.NirvorWidgetUpdater.updateAll(app)
+        }
     }
 
     // ---------- Income (salary etc.) ----------

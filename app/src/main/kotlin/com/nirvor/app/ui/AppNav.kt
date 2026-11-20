@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 sealed interface NavRequest {
     data object Downloads : NavRequest
     data class Browser(val url: String?) : NavRequest
+    data object Money : NavRequest
+    data object Islamic : NavRequest
 }
 
 object AppNav {

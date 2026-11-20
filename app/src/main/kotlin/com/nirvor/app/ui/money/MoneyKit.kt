@@ -32,10 +32,13 @@ import java.time.YearMonth
 internal val IncomeGreen = Color(0xFF0A955A)
 internal val ExpenseRed = Color(0xFFE5484D)
 
-private val MONTHS = listOf(
+internal val MONTHS = listOf(
     "জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন",
     "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর",
 )
+
+/** "নভেম্বর" */
+internal fun monthNameBn(month1to12: Int): String = MONTHS[(month1to12 - 1).coerceIn(0, 11)]
 
 /** "অক্টোবর 2026" */
 internal fun monthLabel(m: YearMonth): String = MONTHS[m.monthValue - 1] + " " + m.year

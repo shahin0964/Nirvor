@@ -72,11 +72,9 @@ fun MoreScreen(
     onHabits: () -> Unit,
     onNotes: () -> Unit,
     onUpdate: () -> Unit,
-    onGames: () -> Unit = {},
 ) {
     PageScaffold("More", "ফিচার ও সেটিংস", onBack = null, bottomPadding = bottomPadding) {
         item { SectionLabel("ফিচার") }
-        item { MenuRow(Glyph.Gamepad, Color(0xFFEA580C), Color(0xFFC2410C), "Game Hub", "ক্যারম পুল, বোর্ড ও আর্কেড গেম", onGames) }
         item { MenuRow(Glyph.Download, C.FabA, C.FabB, "Download Manager", "ডাউনলোড ম্যানেজার", onDownloads) }
         item { MenuRow(Glyph.Swap, C.OrangeA, C.OrangeB, "Lend & Borrow", "দেনা-পাওনা ও কিস্তি", onLedger) }
         item { MenuRow(Glyph.Grid, Color(0xFF5B8DEF), Color(0xFF3B5BDB), "Tool Box", "দরকারি সব টুল এক জায়গায়", onTools) }

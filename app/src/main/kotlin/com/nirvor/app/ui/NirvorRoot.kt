@@ -105,6 +105,7 @@ enum class Page {
     Ledger, LedgerPerson, Installment,
     ToolBox, Tool,
     Islamic, IslamicItem,
+    GameHub, CarromGame, CarromStore,
 }
 
 /** Pages where the green + button makes sense. */
@@ -145,6 +146,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
     var toolName by rememberSaveable { mutableStateOf("") }
     // Islamic Tools: the tool that is open.
     var islamicName by rememberSaveable { mutableStateOf("") }
+    val carromStorage = remember { com.nirvor.app.game.carrom.CarromStorage(context) }
     val skyClock = remember { SkyClock() }
     var headerDark by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -312,6 +314,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                         onHabits = { openPage(Page.Habits) },
                         onNotes = { openPage(Page.Notes) },
                         onUpdate = { openPage(Page.AppUpdate) },
+                        onGames = { openPage(Page.GameHub) },
                     )
                 }
 
@@ -459,6 +462,24 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                     onBack = { goBack() },
                     onOpenHub = { openPage(Page.Downloads) },
                     onFolder = { folderSetupAgain = true },
+                )
+
+                Page.GameHub -> com.nirvor.app.game.GameHubScreen(
+                    storage = carromStorage,
+                    onBack = { goBack() },
+                    onOpenCarrom = { openPage(Page.CarromGame) },
+                    onOpenCarromStore = { openPage(Page.CarromStore) },
+                )
+
+                Page.CarromGame -> com.nirvor.app.game.carrom.CarromScreen(
+                    storage = carromStorage,
+                    onBack = { goBack() },
+                    onOpenStore = { openPage(Page.CarromStore) },
+                )
+
+                Page.CarromStore -> com.nirvor.app.game.carrom.CarromStoreScreen(
+                    storage = carromStorage,
+                    onBack = { goBack() },
                 )
             }
 

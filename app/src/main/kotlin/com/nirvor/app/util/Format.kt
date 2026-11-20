@@ -35,6 +35,8 @@ object Fmt {
         return nf.format(v)
     }
 
+    fun num(v: Number): String = NumberFormat.getNumberInstance(Locale.US).format(v)
+
     fun greeting(hour: Int): String = when (hour) {
         in 5..11 -> "Good Morning,"
         in 12..16 -> "Good Afternoon,"

@@ -1,5 +1,6 @@
 package com.nirvor.app.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import com.nirvor.app.ui.RText
@@ -56,7 +58,13 @@ fun SideBar(onClose: () -> Unit, onSettings: () -> Unit, onAbout: () -> Unit) {
                 .padding(start = 30.r, end = 22.r, top = 34.r, bottom = 24.r)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconBubble(Glyph.Check, C.FabA, C.FabB, size = 80)
+                Image(
+                    painter = painterResource(com.nirvor.app.R.drawable.ic_nirvor_logo),
+                    contentDescription = "Nirvor Logo",
+                    modifier = Modifier
+                        .size(76.r)
+                        .clip(RoundedCornerShape(18.r)),
+                )
                 Spacer(Modifier.width(20.r))
                 Column(Modifier.weight(1f)) {
                     RText("Nirvor", 34, FontWeight.Bold, C.Ink)

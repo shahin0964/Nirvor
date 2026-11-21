@@ -1,6 +1,7 @@
 package com.nirvor.app.ui.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -310,7 +312,13 @@ fun AboutScreen(bottomPadding: Dp, onBack: () -> Unit, onUpdate: () -> Unit = {}
         item {
             ListCard {
                 Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    IconBubble(Glyph.Check, C.FabA, C.FabB, size = 110)
+                    Image(
+                        painter = painterResource(com.nirvor.app.R.drawable.ic_nirvor_logo),
+                        contentDescription = "Nirvor Logo",
+                        modifier = Modifier
+                            .size(110.r)
+                            .clip(RoundedCornerShape(26.r)),
+                    )
                     Spacer(Modifier.height(16.r))
                     RText("Nirvor", 34, FontWeight.Bold, C.Ink)
                     RText("নির্ভর", 20, FontWeight.Normal, C.StatLabelBn)

@@ -7,6 +7,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
 import com.nirvor.app.downloader.Downloads
 import com.nirvor.app.ui.AppNav
@@ -14,6 +20,7 @@ import com.nirvor.app.ui.NavRequest
 import com.nirvor.app.ui.NirvorRoot
 import com.nirvor.app.ui.ProvideRef
 import com.nirvor.app.ui.display.RefreshRateManager
+import com.nirvor.app.ui.splash.SplashScreen
 import com.nirvor.app.ui.theme.NirvorTheme
 import kotlinx.coroutines.launch
 
@@ -39,10 +46,23 @@ class MainActivity : ComponentActivity() {
         com.nirvor.app.backup.AutoBackupScheduler.checkAndTriggerOnAppOpen(this)
         if (savedInstanceState == null) handle(intent)
         lifecycleScope.launch { Downloads.recover(this@MainActivity) }
+        val hasIntentTarget = intent?.hasExtra(EXTRA_OPEN) == true || intent?.component?.className?.endsWith(".BrowserLauncher") == true
+        val splashDuration = if (hasIntentTarget) 300L else 1800L
         setContent {
             NirvorTheme {
                 ProvideRef {
-                    NirvorRoot()
+                    var splashDone by remember { mutableStateOf(false) }
+                    Crossfade(
+                        targetState = splashDone,
+                        animationSpec = tween(400),
+                        label = "splash_crossfade",
+                    ) { done ->
+                        if (!done) {
+                            SplashScreen(durationMs = splashDuration, onFinished = { splashDone = true })
+                        } else {
+                            NirvorRoot()
+                        }
+                    }
                 }
             }
         }

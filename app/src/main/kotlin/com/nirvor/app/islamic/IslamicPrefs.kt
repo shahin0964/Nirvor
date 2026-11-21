@@ -5,6 +5,7 @@ import com.nirvor.app.data.Prefs
 import java.io.File
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 
 /** Where the prayer times are for: the weather city, or the phone's last location. */
 class PrayerPlace(val name: String, val lat: Double, val lon: Double)
@@ -28,6 +29,43 @@ class IslamicPrefs(private val context: Context) {
     var offsets: List<Int>
         get() = (sp.getString("offsets", null) ?: "").split(',').mapNotNull { it.toIntOrNull() }.let { l -> List(6) { l.getOrElse(it) { 0 } } }
         set(v) = sp.edit().putString("offsets", v.joinToString(",")).apply()
+
+    /** Whether custom (manually typed) prayer times are active instead of auto calculation. */
+    var customTimesEnabled: Boolean
+        get() = sp.getBoolean("custom_times_enabled", false)
+        set(v) = sp.edit().putBoolean("custom_times_enabled", v).apply()
+
+    /** 6 times in "HH:mm" (24-hour) for Fajr, Sunrise, Dhuhr, Asr, Maghrib, Isha. */
+    var customTimes: List<String>
+        get() {
+            val raw = sp.getString("custom_times", null) ?: return DEFAULT_CUSTOM_TIMES
+            val list = raw.split(",")
+            return if (list.size == 6) list else DEFAULT_CUSTOM_TIMES
+        }
+        set(v) = sp.edit().putString("custom_times", v.joinToString(",")).apply()
+
+    fun hasCustomTimes(): Boolean = sp.contains("custom_times")
+
+    fun setCustomTime(index: Int, timeStr: String) {
+        val list = customTimes.toMutableList()
+        if (index in 0..5) {
+            list[index] = timeStr
+            customTimes = list
+        }
+    }
+
+    /** Copies currently calculated astronomical times into the custom times list. */
+    fun copyCalculatedToCustom(date: LocalDate = LocalDate.now(), zone: ZoneId = ZoneId.systemDefault()): Boolean {
+        val pl = place() ?: PrayerPlace("ঢাকা", 23.8103, 90.4125)
+        val ramadan = Hijri.of(date, hijriAdjust).month == 9
+        val calc = PrayerTimes.day(date, pl.lat, pl.lon, zone, settings(), ramadan)
+        val formatted = Prayer.entries.map { p ->
+            val zdt = java.time.Instant.ofEpochMilli(calc[p]).atZone(zone)
+            String.format(Locale.US, "%02d:%02d", zdt.hour, zdt.minute)
+        }
+        customTimes = formatted
+        return true
+    }
 
     /** Days added to the Umm al-Qura Hijri date (local moon sighting). */
     var hijriAdjust: Int
@@ -79,11 +117,23 @@ class IslamicPrefs(private val context: Context) {
     fun place(): PrayerPlace? {
         val p = Prefs(context)
         p.city()?.let { return PrayerPlace(it.name, it.lat, it.lon) }
-        return p.lastCoords()?.let { (lat, lon) -> PrayerPlace("ফোনের লোকেশন", lat, lon) }
+        p.lastCoords()?.let { (lat, lon) -> PrayerPlace("ফোনের লোকেশন", lat, lon) }?.let { return it }
+        if (customTimesEnabled) return PrayerPlace("কাস্টম সময়", 23.8103, 90.4125)
+        return null
     }
 
     /** Times for [date] at the saved place, or null when there is no place yet. */
     fun times(date: LocalDate, zone: ZoneId = ZoneId.systemDefault()): DayTimes? {
+        if (customTimesEnabled) {
+            val list = customTimes
+            val millis = Prayer.entries.mapIndexed { i, _ ->
+                val (h, m) = parseHourMinute(list.getOrElse(i) { DEFAULT_CUSTOM_TIMES[i] })
+                val dt = date.atTime(h, m).atZone(zone)
+                val offset = offsets.getOrElse(i) { 0 } * 60_000L
+                dt.toInstant().toEpochMilli() + offset
+            }
+            return DayTimes(date, millis)
+        }
         val pl = place() ?: return null
         val ramadan = Hijri.of(date, hijriAdjust).month == 9
         return PrayerTimes.day(date, pl.lat, pl.lon, zone, settings(), ramadan)
@@ -96,6 +146,17 @@ class IslamicPrefs(private val context: Context) {
             date.atStartOfDay(zone).toInstant().toEpochMilli() + fixed * 60_000L
         } else {
             day[Prayer.five[prayer]] + jamaatAfter * 60_000L
+        }
+    }
+
+    companion object {
+        val DEFAULT_CUSTOM_TIMES = listOf("05:00", "06:15", "12:15", "16:15", "17:30", "19:45")
+
+        fun parseHourMinute(s: String): Pair<Int, Int> {
+            val parts = s.trim().split(":")
+            val h = parts.getOrNull(0)?.toIntOrNull()?.coerceIn(0, 23) ?: 12
+            val m = parts.getOrNull(1)?.toIntOrNull()?.coerceIn(0, 59) ?: 0
+            return h to m
         }
     }
 }

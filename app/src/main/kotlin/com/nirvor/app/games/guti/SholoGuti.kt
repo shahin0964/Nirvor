@@ -1,5 +1,7 @@
 package com.nirvor.app.games.guti
 
+import com.nirvor.app.games.BotLevel
+import com.nirvor.app.games.MatchEnd
 import kotlin.random.Random
 
 /**
@@ -68,10 +70,10 @@ object GutiBoard {
 /** One whole turn: the piece at [from] goes through [path]; [captured] are the pieces it eats. */
 class GutiMove(val from: Int, val path: IntArray, val captured: IntArray) {
     val isCapture get() = captured.isNotEmpty()
-}
 
-/** Result of a game. [winner] is 1, 2 or 0 (draw). */
-class GutiResult(val winner: Int, val reason: String)
+    /** How the move is sent to an online opponent. */
+    fun encode(): String = from.toString() + ":" + path.joinToString(".")
+}
 
 /** A position. Cells hold 0 (empty), 1 (bottom player) or 2 (top player). Never changed in place. */
 class GutiState(val cells: ByteArray, val turn: Int, val quiet: Int = 0, val turns: Int = 0) {
@@ -118,6 +120,9 @@ class GutiState(val cells: ByteArray, val turn: Int, val quiet: Int = 0, val tur
         return caps
     }
 
+    /** The legal move written as [text], or null. */
+    fun decode(text: String): GutiMove? = moves().firstOrNull { it.encode() == text }
+
     private fun chain(start: Int, at: Int, c: ByteArray, path: IntArray, eaten: IntArray, out: MutableList<GutiMove>) {
         for (j in GutiBoard.jumps[at]) {
             if (c[j.over].toInt() != 3 - turn || c[j.to].toInt() != 0) continue
@@ -135,13 +140,13 @@ class GutiState(val cells: ByteArray, val turn: Int, val quiet: Int = 0, val tur
     }
 
     /** The result when the game is over, else null. Asked at the start of a turn. */
-    fun result(): GutiResult? {
+    fun result(): MatchEnd? {
         val mine = count(turn)
         val other = count(3 - turn)
         return when {
-            mine == 0 -> GutiResult(3 - turn, "সব গুটি খাওয়া শেষ")
-            !canMove() -> GutiResult(3 - turn, "আর কোনো চাল নেই")
-            quiet >= QUIET_LIMIT -> GutiResult(
+            mine == 0 -> MatchEnd(3 - turn, "সব গুটি খাওয়া শেষ")
+            !canMove() -> MatchEnd(3 - turn, "আর কোনো চাল নেই")
+            quiet >= QUIET_LIMIT -> MatchEnd(
                 if (mine == other) 0 else if (mine > other) turn else 3 - turn,
                 "টানা $QUIET_LIMIT চালে কেউ গুটি খায়নি, গুটি গুনে ফল",
             )
@@ -160,10 +165,13 @@ class GutiState(val cells: ByteArray, val turn: Int, val quiet: Int = 0, val tur
     }
 }
 
-enum class GutiLevel(val bn: String, val emoji: String, val depth: Int, val mistakes: Int, val millis: Long) {
-    Easy("সহজ", "🌱", 1, 35, 400),
-    Medium("মাঝারি", "🔥", 3, 8, 800),
-    Hard("কঠিন", "💀", 7, 0, 1500),
+/** How deep the bot looks, how often it plays a random move (%), and how long it may think. */
+private class Skill(val depth: Int, val mistakes: Int, val millis: Long)
+
+private fun skill(level: BotLevel) = when (level) {
+    BotLevel.Easy -> Skill(1, 35, 400)
+    BotLevel.Medium -> Skill(3, 8, 800)
+    BotLevel.Hard -> Skill(7, 0, 1500)
 }
 
 /** Alpha-beta search with a time limit. */
@@ -175,7 +183,8 @@ class GutiBot(private val random: Random = Random.Default) {
     private var deadline = 0L
     private var nodes = 0
 
-    fun choose(s: GutiState, level: GutiLevel): GutiMove? {
+    fun choose(s: GutiState, botLevel: BotLevel): GutiMove? {
+        val level = skill(botLevel)
         val all = s.moves()
         if (all.isEmpty()) return null
         if (level.mistakes > 0 && random.nextInt(100) < level.mistakes) return all[random.nextInt(all.size)]

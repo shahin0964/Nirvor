@@ -49,14 +49,13 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import com.nirvor.app.games.Counter
 import com.nirvor.app.games.GameProfile
-import com.nirvor.app.games.Outcome
-import com.nirvor.app.games.Reward
 import com.nirvor.app.games.Slot
 import com.nirvor.app.games.guti.GutiBoard
 import com.nirvor.app.games.guti.GutiBot
-import com.nirvor.app.games.guti.GutiLevel
+import com.nirvor.app.games.BotLevel
+import com.nirvor.app.games.GameSound
 import com.nirvor.app.games.guti.GutiMove
-import com.nirvor.app.games.guti.GutiResult
+import com.nirvor.app.games.MatchEnd
 import com.nirvor.app.games.guti.GutiState
 import com.nirvor.app.islamic.bnNum
 import com.nirvor.app.ui.PageHeader
@@ -70,8 +69,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.hypot
 import kotlin.math.min
-
-private const val ME = 1
 
 /** The state of one match on screen. Player 1 is at the bottom; with a bot, the bot is player 2. */
 private class GutiMatch {
@@ -87,9 +84,11 @@ private class GutiMatch {
     var hint by mutableStateOf<GutiMove?>(null)
     var lastFrom by mutableIntStateOf(-1)
     var lastTo by mutableIntStateOf(-1)
-    var result by mutableStateOf<GutiResult?>(null)
-    var reward by mutableStateOf<Reward?>(null)
+    var result by mutableStateOf<MatchEnd?>(null)
     var undo by mutableStateOf(listOf<GutiState>())
+
+    /** Points the moving piece has been on this turn. */
+    var trail = listOf<Int>()
 
     /** The position when this turn began (what "undo" goes back to). */
     var turnStart = state
@@ -114,70 +113,69 @@ private class GutiMatch {
         busy = false
         state = state.endTurn(captured)
         turnStart = state
-        result = state.result()
+        if (result == null) result = state.result()
     }
 }
 
 @Composable
-fun SholoGutiScreen(profile: GameProfile, name: String, level: GutiLevel?, onExit: () -> Unit) {
+fun SholoGutiScreen(profile: GameProfile, name: String, rival: Rival, onExit: () -> Unit) {
     var round by remember { mutableIntStateOf(0) }
     val match = remember(round) { GutiMatch() }
     val anim = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
+    val sound = rememberSound(profile)
     val bot = remember { GutiBot() }
-    var leaving by remember { mutableStateOf(false) }
-    val vsBot = level != null
+    val vsBot = rival is Rival.Bot
+    val me = rival.me
     val s = match.state
-    val myTurn = match.result == null && !match.busy && (!vsBot || s.turn == ME)
+    val myTurn = match.result == null && !match.busy && rival.mine(s.turn)
 
-    fun over() = match.result != null
-
-    /** Leaving a started match against the bot counts as a loss (without a reward). */
-    fun leave() {
-        if (vsBot && !over() && s.turns >= 4) profile.finish(Outcome.Loss, 0, 0, 0, 16 - s.count(2))
-        onExit()
-    }
-
-    fun back() {
-        if (over() || s.turns < 2) leave() else leaving = true
-    }
-    BackHandler { back() }
-
-    // the bot's turn
-    LaunchedEffect(match, s.turn, match.result == null) {
-        if (level == null || s.turn == ME || match.result != null) return@LaunchedEffect
-        match.busy = true
-        delay(350)
-        val from = match.state
-        val move = withContext(Dispatchers.Default) { bot.choose(from, level) } ?: return@LaunchedEffect
+    suspend fun playWhole(move: GutiMove) {
         var at = move.from
         move.path.forEachIndexed { i, to ->
             match.hop(at, to, move.captured.getOrElse(i) { -1 }, anim)
+            sound.play(if (move.isCapture) GameSound.S.Hit else GameSound.S.Tap)
             if (move.isCapture) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             at = to
         }
         match.endTurn(move.isCapture)
     }
 
-    // the reward, once per match
-    LaunchedEffect(match.result) {
-        val r = match.result ?: return@LaunchedEffect
-        if (level != null && match.reward == null) {
-            val eaten = 16 - match.state.count(2)
-            val (xp, coins, gems) = winPrize(level)
-            match.reward = when (r.winner) {
-                ME -> profile.finish(Outcome.Win, xp, coins, gems, eaten)
-                0 -> profile.finish(Outcome.Draw, xp / 2, coins / 2, 0, eaten)
-                else -> profile.finish(Outcome.Loss, 8, 5, 0, eaten)
+    // the other side's turn
+    LaunchedEffect(match, s.turn, match.result == null) {
+        if (rival.mine(s.turn) || match.result != null) return@LaunchedEffect
+        val from = match.state
+        when (rival) {
+            is Rival.Bot -> {
+                match.busy = true
+                delay(350)
+                withContext(Dispatchers.Default) { bot.choose(from, rival.level) }?.let { playWhole(it) }
             }
+            is Rival.Online -> {
+                val move = from.decode(rival.session.moves.receive())
+                if (move == null) match.result = MatchEnd(me, "বিপক্ষের চাল ঠিক নেই")
+                else {
+                    match.busy = true
+                    playWhole(move)
+                }
+            }
+            Rival.Local -> Unit
+        }
+    }
+
+    /** Ends the player's own turn; online it is sent to the opponent. */
+    fun endMine(m: GutiMatch, captured: Boolean) {
+        val text = m.trail.first().toString() + ":" + m.trail.drop(1).joinToString(".")
+        m.endTurn(captured)
+        if (rival is Rival.Online) scope.launch {
+            if (!rival.session.send(text) && m.result == null) m.result = MatchEnd(3 - me, "চাল পাঠানো যায়নি")
         }
     }
 
     fun tap(p: Int) {
-        if (!myTurn || over()) return
-        val mine = s.cells[p].toInt() == s.turn
-        if (match.chain < 0 && mine) {
+        if (!myTurn) return
+        if (match.chain < 0 && s.cells[p].toInt() == s.turn) {
             match.selected = if (match.selected == p) -1 else p
             return
         }
@@ -186,23 +184,28 @@ fun SholoGutiScreen(profile: GameProfile, name: String, level: GutiLevel?, onExi
         val jump = s.jumps(from).firstOrNull { it.to == p }
         val step = match.chain < 0 && p in s.steps(from)
         if (jump == null && !step) return
-        if (match.chain < 0 && vsBot) match.undo = (match.undo + match.turnStart).takeLast(30)
+        if (match.chain < 0) {
+            match.trail = listOf(from)
+            if (vsBot) match.undo = (match.undo + match.turnStart).takeLast(30)
+        }
         val m = match
+        m.trail = m.trail + p
         m.busy = true
         m.hint = null
         scope.launch {
             m.selected = -1
             m.hop(from, p, jump?.over ?: -1, anim)
+            sound.play(if (jump != null) GameSound.S.Hit else GameSound.S.Tap)
             if (jump == null) {
-                m.endTurn(false)
+                endMine(m, false)
             } else {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                if (m.state.jumps(p).isNotEmpty()) {
+                if (m.result == null && m.state.jumps(p).isNotEmpty()) {
                     m.chain = p
                     m.selected = p
                     m.busy = false
                 } else {
-                    m.endTurn(true)
+                    endMine(m, true)
                 }
             }
         }
@@ -225,155 +228,61 @@ fun SholoGutiScreen(profile: GameProfile, name: String, level: GutiLevel?, onExi
         val m = match
         m.busy = true
         scope.launch {
-            val found = withContext(Dispatchers.Default) { GutiBot().choose(m.state, GutiLevel.Hard) }
+            val found = withContext(Dispatchers.Default) { GutiBot().choose(m.state, BotLevel.Hard) }
             m.hint = found
             m.selected = found?.from ?: -1
             m.busy = false
         }
     }
 
-    Column(Modifier.fillMaxSize().background(C.Sheet)) {
-        PageHeader(profile.game.title, if (level != null) "বট · ${level.bn}" else "দুজনের খেলা", onBack = { back() })
-        Column(Modifier.fillMaxSize().navigationBarsPadding().padding(horizontal = 20.r, vertical = 8.r)) {
-            PlayerBar(
-                emoji = if (vsBot) "🤖" else "🧑",
-                name = if (vsBot) "বট" else "খেলোয়াড় ২",
-                left = s.count(2),
-                color = pieceColors(profile)[1],
-                active = s.turn == 2 && !over(),
-                note = if (vsBot && s.turn == 2 && !over()) "ভাবছে…" else "",
-            )
-            Board(profile, match, Modifier.fillMaxWidth().weight(1f).padding(vertical = 10.r), onTap = ::tap)
-            PlayerBar(
-                emoji = profile.equipped(Slot.Avatar)?.emoji ?: "🙂",
-                name = if (vsBot) name else "খেলোয়াড় ১",
-                left = s.count(1),
-                color = pieceColors(profile)[0],
-                active = s.turn == 1 && !over(),
-                note = "",
-            )
-            Spacer(Modifier.height(12.r))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.r, Alignment.CenterHorizontally)) {
-                if (match.chain >= 0) {
-                    SmallButton("✔ চাল শেষ", TGreen, myTurn) { match.endTurn(true) }
-                }
-                if (vsBot) {
-                    val d = profile.data
-                    SmallButton(
-                        "↩️ ফেরত (${bnNum(d.counter(Counter.UNDO))})",
-                        Color(profile.game.colorB),
-                        myTurn && match.undo.isNotEmpty() && d.counter(Counter.UNDO) > 0,
-                    ) { useUndo() }
-                    SmallButton(
-                        "💡 পরামর্শ (${bnNum(d.counter(Counter.HINT))})",
-                        Color(profile.game.colorB),
-                        myTurn && match.chain < 0 && match.hint == null && d.counter(Counter.HINT) > 0,
-                    ) { useHint() }
-                }
+    val colors = pieceColors(profile)
+    MatchFrame(
+        profile, rival, name, round, s.turn, s.turns, 8, match.result, 16 - s.count(3 - me), "",
+        badge = { "⚔ ${bnNum(s.count(it))}" },
+        sound = sound,
+        onForceEnd = { if (match.result == null) match.result = it },
+        onAgain = { round++ },
+        onExit = onExit,
+        buttons = {
+            if (match.chain >= 0) SmallButton("✔ চাল শেষ", TGreen, myTurn) { endMine(match, true) }
+            if (vsBot) {
+                val d = profile.data
+                SmallButton("↩️ ফেরত (${bnNum(d.counter(Counter.UNDO))})", Color(profile.game.colorB), myTurn && match.undo.isNotEmpty() && d.counter(Counter.UNDO) > 0) { useUndo() }
+                SmallButton("💡 পরামর্শ (${bnNum(d.counter(Counter.HINT))})", Color(profile.game.colorB), myTurn && match.chain < 0 && match.hint == null && d.counter(Counter.HINT) > 0) { useHint() }
             }
-            Spacer(Modifier.height(6.r))
-        }
-    }
-
-    if (leaving) {
-        AlertDialog(
-            onDismissRequest = { leaving = false },
-            containerColor = Color.White,
-            title = { RText("খেলা ছেড়ে দেবেন?", 24, FontWeight.Bold, C.Ink) },
-            text = {
-                RText(if (vsBot && s.turns >= 4) "এই ম্যাচ হার হিসেবে গোনা হবে।" else "এই ম্যাচ সেভ থাকবে না।", 18, FontWeight.Normal, C.StatLabel, maxLines = 2)
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    leaving = false
-                    leave()
-                }) { RText("ছেড়ে দিন", 19, FontWeight.SemiBold, C.Danger) }
-            },
-            dismissButton = { TextButton(onClick = { leaving = false }) { RText("খেলব", 19, FontWeight.SemiBold, TGreen) } },
-        )
-    }
-
-    match.result?.let { r ->
-        val title = when {
-            r.winner == 0 -> "🤝 ড্র"
-            !vsBot -> "🏆 খেলোয়াড় ${bnNum(r.winner)} জিতেছে"
-            r.winner == ME -> "🏆 আপনি জিতেছেন!"
-            else -> "😔 বট জিতেছে"
-        }
-        AlertDialog(
-            onDismissRequest = { },
-            containerColor = Color.White,
-            title = { RText(title, 27, FontWeight.Bold, C.Ink) },
-            text = {
-                Column {
-                    RText(r.reason, 18, FontWeight.Normal, C.StatLabel, maxLines = 3, lineHeight = 26)
-                    match.reward?.let { w ->
-                        Spacer(Modifier.height(14.r))
-                        RText(
-                            "⭐ +${bnNum(w.xp)} XP   🪙 +${bnNum(w.coins)}" + if (w.gems > 0) "   💎 +${bnNum(w.gems)}" else "",
-                            21,
-                            FontWeight.Bold,
-                            TGreen,
-                        )
-                        if (w.firstWin) RText("🌞 দিনের প্রথম জয়ের বোনাসসহ", 17, FontWeight.Medium, GemInk, Modifier.padding(top = 8.r))
-                        if (w.levelUps > 0) RText("🎉 লেভেল ${bnNum(profile.data.level)} হয়েছে!", 20, FontWeight.Bold, CoinInk, Modifier.padding(top = 8.r))
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { round++ }) { RText("আবার খেলুন", 19, FontWeight.SemiBold, TGreen) } },
-            dismissButton = { TextButton(onClick = onExit) { RText("বের হন", 19, FontWeight.Medium, C.Hint) } },
-        )
-    }
+        },
+    ) { mod -> Board(profile, match, me == 2, mod, colors, onTap = ::tap) }
 }
 
 private fun pieceColors(profile: GameProfile): List<Color> =
     (profile.equipped(Slot.Piece)?.colors ?: listOf(0xFFD6352B, 0xFF262B33)).map { Color(it) }
 
-@Composable
-private fun PlayerBar(emoji: String, name: String, left: Int, color: Color, active: Boolean, note: String) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.r))
-            .background(if (active) TGreen.copy(alpha = 0.14f) else Color.White)
-            .padding(horizontal = 18.r, vertical = 12.r),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RText(emoji, 30, FontWeight.Normal, C.Ink)
-        Spacer(Modifier.width(12.r))
-        RText(name, 20, FontWeight.SemiBold, C.Ink, Modifier.weight(1f))
-        if (note.isNotEmpty()) RText(note, 16, FontWeight.Medium, C.Hint, Modifier.padding(end = 12.r))
-        Box(Modifier.size(26.r).clip(CircleShape).background(color))
-        Spacer(Modifier.width(8.r))
-        RText(bnNum(left), 22, FontWeight.Bold, C.Ink)
-    }
-}
-
 /** Where the points are inside a canvas of this size. */
-private class Geo(size: Size) {
+private class Geo(size: Size, private val flip: Boolean) {
     val cell = min(size.width / 5.2f, size.height / 9.2f)
     private val left = (size.width - cell * 4) / 2
     private val top = (size.height - cell * 8) / 2
-    fun at(p: Int): Offset = GutiBoard.points[p].let { Offset(left + it.x * cell, top + (it.y + 2) * cell) }
+    fun at(p: Int): Offset = GutiBoard.points[p].let {
+        if (flip) Offset(left + (4 - it.x) * cell, top + (6 - it.y) * cell) else Offset(left + it.x * cell, top + (it.y + 2) * cell)
+    }
     val frameAt = Offset(left - cell * 0.6f, top - cell * 0.6f)
     val frameSize = Size(cell * 5.2f, cell * 9.2f)
 }
 
 @Composable
-private fun Board(profile: GameProfile, match: GutiMatch, modifier: Modifier, onTap: (Int) -> Unit) {
+private fun Board(profile: GameProfile, match: GutiMatch, flip: Boolean, modifier: Modifier, pieces: List<Color>, onTap: (Int) -> Unit) {
     val board = (profile.equipped(Slot.Board)?.colors ?: listOf(0xFFE9C48F, 0xFF8A5523, 0xFF5A3512)).map { Color(it) }
-    val pieces = pieceColors(profile)
     val tap = rememberUpdatedState(onTap)
     Canvas(
         modifier.pointerInput(Unit) {
             detectTapGestures { pos ->
-                val geo = Geo(Size(size.width.toFloat(), size.height.toFloat()))
+                val geo = Geo(Size(size.width.toFloat(), size.height.toFloat()), flip)
                 val p = (0 until GutiBoard.SIZE).minByOrNull { geo.at(it).let { o -> hypot(o.x - pos.x, o.y - pos.y) } }
                 if (p != null && geo.at(p).let { hypot(it.x - pos.x, it.y - pos.y) } < geo.cell * 0.6f) tap.value(p)
             }
         },
     ) {
-        val geo = Geo(size)
+        val geo = Geo(size, flip)
         val s = match.state
         drawRoundRect(board[1], geo.frameAt, geo.frameSize, CornerRadius(geo.cell * 0.35f))
         val edge = geo.cell * 0.12f

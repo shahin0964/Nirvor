@@ -17,6 +17,14 @@ if (file("src/main/java/com/nirvor/app").exists()) {
 }
 
 android {
+    // Online games: only the two values the app needs are read from google-services.json. The file is
+    // not in the repository (CI makes it from a secret); without it the app builds with online play off.
+    val firebaseFile = file("google-services.json")
+    val firebase = if (firebaseFile.exists()) groovy.json.JsonSlurper().parse(firebaseFile) as Map<*, *> else null
+    val firebaseUrl = (firebase?.get("project_info") as? Map<*, *>)?.get("firebase_url") as? String ?: ""
+    val firebaseClient = (firebase?.get("client") as? List<*>)?.firstOrNull() as? Map<*, *>
+    val firebaseKey = ((firebaseClient?.get("api_key") as? List<*>)?.firstOrNull() as? Map<*, *>)?.get("current_key") as? String ?: ""
+
     namespace = "com.nirvor.app"
     compileSdk = 35
 
@@ -29,6 +37,8 @@ android {
         targetSdk = 35
         versionCode = appVersionCode
         versionName = appVersionName
+        buildConfigField("String", "FIREBASE_URL", "\"$firebaseUrl\"")
+        buildConfigField("String", "FIREBASE_KEY", "\"$firebaseKey\"")
 
         // The download engine (yt-dlp + Python + FFmpeg) ships native code; real phones are ARM.
         ndk {
@@ -76,6 +86,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     // All app code is Kotlin and lives in src/main/kotlin.

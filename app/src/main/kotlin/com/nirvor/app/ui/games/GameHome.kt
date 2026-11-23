@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import com.nirvor.app.games.BotLevel
 import com.nirvor.app.games.BuyResult
 import com.nirvor.app.games.Counter
 import com.nirvor.app.games.Economy
@@ -43,61 +44,72 @@ import com.nirvor.app.games.GameProfile
 import com.nirvor.app.games.Slot
 import com.nirvor.app.games.StoreItem
 import com.nirvor.app.games.Stores
-import com.nirvor.app.games.guti.GutiLevel
 import com.nirvor.app.islamic.bnNum
 import com.nirvor.app.ui.RText
 import com.nirvor.app.ui.r
 import com.nirvor.app.ui.theme.C
+import com.nirvor.app.ui.tools.ChoiceChip
 import com.nirvor.app.ui.tools.RoundButton
 import com.nirvor.app.ui.tools.StatLine
 import com.nirvor.app.ui.tools.TGreen
 import com.nirvor.app.ui.tools.ToolScaffold
 
-/** One game: its খেলা / স্টোর / প্রোফাইল tabs, and the match itself. */
+/** One game: its খেলা / স্টোর / হিসাব tabs, the online lobby, and the match itself. */
 @Composable
 fun GameHost(game: GameId, name: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val profile = remember(game) { GameProfile.of(context, game) }
-    // "" = not playing, "two" = two players, else the bot's level
-    var match by rememberSaveable(game) { mutableStateOf("") }
+    var rival by remember(game) { mutableStateOf<Rival?>(null) }
+    var lobby by remember(game) { mutableStateOf(false) }
     var tab by rememberSaveable(game) { mutableIntStateOf(0) }
+    val shown = profile.player.nick.ifBlank { name }.ifBlank { "আপনি" }
 
-    if (match.isNotEmpty()) {
+    rival?.let { r ->
+        val exit = { rival = null }
         when (game) {
-            GameId.SholoGuti -> SholoGutiScreen(
-                profile = profile,
-                name = name.ifBlank { "আপনি" },
-                level = GutiLevel.entries.firstOrNull { it.name == match },
-                onExit = { match = "" },
-            )
-            else -> match = ""
+            GameId.SholoGuti -> SholoGutiScreen(profile, shown, r, exit)
+            GameId.Carrom -> CarromScreen(profile, shown, r, exit)
+            GameId.KolomFight -> KolomScreen(profile, shown, r, exit)
+            GameId.BaghBondi -> BaghScreen(profile, shown, r, exit)
+        }
+        return
+    }
+    if (lobby) {
+        OnlineLobby(profile, onBack = { lobby = false }) {
+            lobby = false
+            rival = Rival.Online(it)
         }
         return
     }
 
     BackHandler(enabled = tab != 0) { tab = 0 }
     ToolScaffold(game.title, game.sub, onBack) {
-        ProfileHeader(game, profile, name)
-        Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.r)).background(Color.White).padding(6.r),
-            horizontalArrangement = Arrangement.spacedBy(6.r),
-        ) {
-            listOf("🎮 খেলা", "🛒 স্টোর", "👤 প্রোফাইল").forEachIndexed { i, label ->
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(16.r))
-                        .background(if (tab == i) Color(game.colorB) else Color.Transparent)
-                        .clickable { tab = i }
-                        .padding(vertical = 14.r),
-                    contentAlignment = Alignment.Center,
-                ) { RText(label, 18, FontWeight.SemiBold, if (tab == i) Color.White else C.StatLabel) }
-            }
-        }
+        ProfileHeader(game, profile, shown)
+        GameTabs(listOf("🎮 খেলা", "🛒 স্টোর", "📊 হিসাব"), tab, Color(game.colorB)) { tab = it }
         when (tab) {
-            0 -> PlayTab(profile) { match = it }
+            0 -> PlayTab(profile, onOnline = { lobby = true }) { rival = it }
             1 -> StoreTab(game, profile)
             else -> ProfileTab(profile)
+        }
+    }
+}
+
+@Composable
+internal fun GameTabs(labels: List<String>, selected: Int, color: Color, onSelect: (Int) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(20.r)).background(Color.White).padding(6.r),
+        horizontalArrangement = Arrangement.spacedBy(6.r),
+    ) {
+        labels.forEachIndexed { i, label ->
+            Box(
+                Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(16.r))
+                    .background(if (selected == i) color else Color.Transparent)
+                    .clickable { onSelect(i) }
+                    .padding(vertical = 14.r),
+                contentAlignment = Alignment.Center,
+            ) { RText(label, 18, FontWeight.SemiBold, if (selected == i) Color.White else C.StatLabel) }
         }
     }
 }
@@ -117,17 +129,12 @@ internal fun GameCard(content: @Composable ColumnScope.() -> Unit) {
 
 // ---------------------------------------------------------------- play
 
-/** XP, coins and gems for beating each bot level. */
-internal fun winPrize(level: GutiLevel): Triple<Int, Int, Int> = when (level) {
-    GutiLevel.Easy -> Triple(20, 20, 0)
-    GutiLevel.Medium -> Triple(40, 40, 0)
-    GutiLevel.Hard -> Triple(80, 80, 1)
-}
-
 @Composable
-private fun PlayTab(profile: GameProfile, onPlay: (String) -> Unit) {
+private fun PlayTab(profile: GameProfile, onOnline: () -> Unit, onPlay: (Rival) -> Unit) {
     val context = LocalContext.current
     var rules by remember { mutableStateOf(false) }
+    // বাঘবন্দি: which side the player takes against the bot
+    var side by rememberSaveable { mutableIntStateOf(1) }
 
     val ready = profile.dailyReady()
     val number = profile.dailyNumber()
@@ -151,15 +158,20 @@ private fun PlayTab(profile: GameProfile, onPlay: (String) -> Unit) {
     GameCard {
         RText("🤖 বটের সাথে", 21, FontWeight.Bold, C.Ink)
         Spacer(Modifier.height(12.r))
-        GutiLevel.entries.forEach { level ->
-            val (xp, coins, gems) = winPrize(level)
+        if (profile.game == GameId.BaghBondi) {
+            Row(Modifier.padding(bottom = 8.r), horizontalArrangement = Arrangement.spacedBy(10.r)) {
+                ChoiceChip("🐐 ছাগল হব", side == 1) { side = 1 }
+                ChoiceChip("🐯 বাঘ হব", side == 2) { side = 2 }
+            }
+        }
+        BotLevel.entries.forEach { level ->
             Row(
                 Modifier
                     .fillMaxWidth()
                     .padding(vertical = 5.r)
                     .clip(RoundedCornerShape(18.r))
                     .background(C.CalBg)
-                    .clickable { onPlay(level.name) }
+                    .clickable { onPlay(Rival.Bot(level, if (profile.game == GameId.BaghBondi) side else 1)) }
                     .padding(horizontal = 18.r, vertical = 16.r),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -168,7 +180,7 @@ private fun PlayTab(profile: GameProfile, onPlay: (String) -> Unit) {
                 Column(Modifier.weight(1f)) {
                     RText(level.bn, 21, FontWeight.SemiBold, C.Ink)
                     RText(
-                        "জিতলে ${bnNum(xp)} XP · 🪙 ${bnNum(coins)}" + if (gems > 0) " · 💎 ${bnNum(gems)}" else "",
+                        "জিতলে ${bnNum(level.xp)} XP · 🪙 ${bnNum(level.coins)}" + if (level.gems > 0) " · 💎 ${bnNum(level.gems)}" else "",
                         16,
                         FontWeight.Medium,
                         C.StatLabelBn,
@@ -179,7 +191,8 @@ private fun PlayTab(profile: GameProfile, onPlay: (String) -> Unit) {
         }
     }
 
-    RoundButton("👥 এক ফোনে দুজন খেলুন", Color(profile.game.colorB), Modifier.fillMaxWidth()) { onPlay("two") }
+    RoundButton("🌐 অনলাইনে খেলুন", TGreen, Modifier.fillMaxWidth()) { onOnline() }
+    RoundButton("👥 এক ফোনে দুজন খেলুন", Color(profile.game.colorB), Modifier.fillMaxWidth()) { onPlay(Rival.Local) }
     RoundButton("📜 খেলার নিয়ম", Color(profile.game.colorB), Modifier.fillMaxWidth(), filled = false) { rules = true }
 
     if (rules) {
@@ -187,21 +200,22 @@ private fun PlayTab(profile: GameProfile, onPlay: (String) -> Unit) {
             onDismissRequest = { rules = false },
             containerColor = Color.White,
             title = { RText("${profile.game.title}: নিয়ম", 24, FontWeight.Bold, C.Ink) },
-            text = { RText(GUTI_RULES, 18, FontWeight.Normal, C.Body, maxLines = 40, lineHeight = 29) },
+            text = { RText(rulesOf(profile.game), 18, FontWeight.Normal, C.Body, maxLines = 60, lineHeight = 29) },
             confirmButton = { TextButton(onClick = { rules = false }) { RText("বুঝেছি", 19, FontWeight.SemiBold, TGreen) } },
         )
     }
 }
 
-private const val GUTI_RULES =
-    "• দুজনের ১৬টা করে গুটি। নিচের গুটি আপনার।\n" +
-        "• দাগ ধরে এক ঘর পাশের খালি বিন্দুতে চাল দিন।\n" +
-        "• পাশে বিপক্ষের গুটি আর তার ঠিক পরের ঘর সোজা দাগে খালি থাকলে লাফ দিয়ে গুটি খান।\n" +
-        "• খাওয়ার পর একই গুটি দিয়ে আরও খাওয়া গেলে পরপর খেতে পারেন, না চাইলে \"চাল শেষ\" চাপুন।\n" +
-        "• খাওয়া বাধ্যতামূলক না।\n" +
-        "• বিপক্ষের সব গুটি খেলে, বা তার কোনো চাল না থাকলে আপনি জিতবেন।\n" +
-        "• টানা ৬০ চালে কেউ গুটি না খেলে যার গুটি বেশি সে জেতে, সমান হলে ড্র।\n" +
-        "• দুজনের খেলায় XP বা কয়েন নেই, শুধু মজা।"
+private fun rulesOf(game: GameId): String = when (game) {
+    GameId.SholoGuti ->
+        "• দুজনের ১৬টা করে গুটি।\n• দাগ ধরে এক ঘর পাশের খালি বিন্দুতে চাল দিন।\n• পাশে বিপক্ষের গুটি আর তার পরের ঘর সোজা দাগে খালি থাকলে লাফ দিয়ে খান।\n• পরপর খাওয়া যায়, না চাইলে \"চাল শেষ\" চাপুন। খাওয়া বাধ্যতামূলক না।\n• সব গুটি খেলে বা বিপক্ষের চাল না থাকলে জয়।\n• টানা ৬০ চালে কেউ না খেলে গুটি গুনে ফল।"
+    GameId.Carrom ->
+        "• খেলোয়াড় ১ সাদা, খেলোয়াড় ২ কালো গুটি।\n• নিচের স্লাইডারে স্ট্রাইকার সরান। বোর্ডে আঙুল পেছনে টেনে ছাড়ুন, যত টানবেন তত জোর।\n• নিজের গুটি ফেললে আবার মারবেন।\n• লাল রানি ফেলতে আগে নিজের একটা গুটি ফেলতে হবে, আর রানির পর সাথে সাথে নিজের একটা গুটি ফেলে কভার করতে হবে।\n• স্ট্রাইকার পকেটে গেলে ফাউল: একটা গুটি ফেরত, পালা শেষ।\n• রানি কভার না হলে শেষ গুটি ফেলা যায় না।\n• আগে সব গুটি ফেললে জয়।"
+    GameId.KolomFight ->
+        "• নিজের কলমে আঙুল রেখে পেছনে টেনে ছাড়ুন। যেখানে ধরবেন সেখানে টোকা লাগবে, মাথায় ধরলে কলম ঘুরবে।\n• বিপক্ষের কলম টেবিল থেকে ফেললে রাউন্ড জয়।\n• নিজের কলম পড়লে রাউন্ড হার, দুটো পড়লেও।\n• আগে ৩ রাউন্ড জিতলে ম্যাচ জয়।"
+    GameId.BaghBondi ->
+        "• ৪টা বাঘ, ২০টা ছাগল। ছাগল আগে চাল দেয়।\n• প্রথমে ছাগল একটা একটা করে খালি ঘরে বসে। ২০টা বসার পর ছাগল চলতে পারে।\n• বাঘ পাশের ছাগলের ওপর দিয়ে সোজা লাফ দিয়ে খায়, এক চালে একটা।\n• বাঘ ৫টা ছাগল খেলে জেতে, সব বাঘ আটকে গেলে ছাগল জেতে।\n• টানা ৬০ চালে কিছু না হলে ড্র।"
+} + "\n• এক ফোনে দুজনের খেলায় XP বা কয়েন নেই।\n• অনলাইনে প্রতি চালে ৯০ সেকেন্ড সময়।"
 
 @Composable
 internal fun SmallButton(label: String, color: Color, enabled: Boolean = true, onClick: () -> Unit) {
@@ -323,6 +337,13 @@ private fun ItemPreview(item: StoreItem) {
                 .border(6.r, colors[1], RoundedCornerShape(16.r)),
             contentAlignment = Alignment.Center,
         ) { RText("╳", 44, FontWeight.Bold, colors[2]) }
+        item.slot == Slot.Striker && colors.size >= 2 -> Box(Modifier.height(92.r), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(74.r).clip(CircleShape).background(colors[0]).border(7.r, colors[1], CircleShape))
+        }
+        item.slot == Slot.Pen && colors.size >= 2 -> Row(Modifier.fillMaxWidth().height(92.r), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            Box(Modifier.width(130.r).height(20.r).clip(RoundedCornerShape(topStart = 12.r, bottomStart = 12.r)).background(colors[0]))
+            Box(Modifier.width(60.r).height(24.r).clip(RoundedCornerShape(topEnd = 12.r, bottomEnd = 12.r)).background(colors[1]))
+        }
         item.slot == Slot.Piece && colors.size >= 2 -> Row(
             Modifier.height(92.r),
             horizontalArrangement = Arrangement.spacedBy(14.r),
@@ -336,7 +357,7 @@ private fun ItemPreview(item: StoreItem) {
                 )
             }
         }
-        else -> Box(Modifier.height(92.r), contentAlignment = Alignment.Center) { RText(item.emoji, 54, FontWeight.Normal, C.Ink) }
+        else -> Box(Modifier.height(92.r), contentAlignment = Alignment.Center) { RText(item.emoji, if (item.slot == Slot.Piece) 44 else 54, FontWeight.Normal, C.Ink) }
     }
 }
 
@@ -350,20 +371,25 @@ private fun ProfileTab(profile: GameProfile) {
     GameCard {
         RText("📊 হিসাব", 21, FontWeight.Bold, C.Ink)
         Spacer(Modifier.height(8.r))
-        StatLine("মোট ম্যাচ (বটের সাথে)", bnNum(d.played))
+        StatLine("মোট ম্যাচ (বট + অনলাইন)", bnNum(d.played))
         StatLine("জয়", bnNum(d.wins), TGreen)
         StatLine("হার", bnNum(d.losses), C.Danger)
         StatLine("ড্র", bnNum(d.draws))
         StatLine("জয়ের হার", if (d.played == 0) "—" else bnNum(d.wins * 100 / d.played) + "%")
         StatLine("টানা জয় (এখন / সেরা)", "${bnNum(d.streak)} / ${bnNum(d.bestStreak)}")
-        StatLine("মোট গুটি খেয়েছেন", bnNum(d.captured))
+        StatLine("অনলাইনে জয়", bnNum(d.onlineWins))
+        StatLine("মোট (${profile.game.score})", bnNum(d.captured))
         StatLine("মোট XP", bnNum(d.xp))
     }
     GameCard {
         RText("🎒 আপনার পাওয়ার", 21, FontWeight.Bold, C.Ink)
         Spacer(Modifier.height(8.r))
-        StatLine("↩️ চাল ফেরত", bnNum(d.counter(Counter.UNDO)))
-        StatLine("💡 পরামর্শ", bnNum(d.counter(Counter.HINT)))
+        if (profile.game.isBoard) {
+            StatLine("↩️ চাল ফেরত", bnNum(d.counter(Counter.UNDO)))
+            StatLine("💡 পরামর্শ", bnNum(d.counter(Counter.HINT)))
+        } else {
+            StatLine("🎯 লম্বা এইম", bnNum(d.counter(Counter.AIM)))
+        }
         StatLine("⚡ ডাবল XP ম্যাচ", bnNum(d.counter(Counter.DOUBLE_XP)))
     }
     GameCard {
@@ -371,7 +397,8 @@ private fun ProfileTab(profile: GameProfile) {
         Spacer(Modifier.height(8.r))
         StatLine("লেভেল বাড়লে", "💎 ${bnNum(Economy.LEVEL_GEMS)} + 🪙 ${bnNum(Economy.LEVEL_COINS)}")
         StatLine("দিনের প্রথম জয়", "💎 ${bnNum(Economy.FIRST_WIN_GEMS)}")
-        StatLine("কঠিন বটকে হারালে", "💎 ১")
+        StatLine("কঠিন বট বা অনলাইনে জয়", "💎 ১")
+        StatLine("দৈনিক / সাপ্তাহিক ইভেন্ট", "💎 ১ / ৬")
         StatLine("৭ দিন পুরস্কার নিলে", "💎 ১৫")
     }
 }

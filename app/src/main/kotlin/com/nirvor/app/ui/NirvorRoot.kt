@@ -418,6 +418,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                 }
 
                 Page.GameHub -> GameHubScreen(
+                    name = currentName,
                     onBack = { goBack() },
                     onOpen = {
                         gameName = it.name
@@ -427,7 +428,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
 
                 Page.Game -> {
                     val game = GameId.of(gameName)
-                    if (game != null && game.ready) {
+                    if (game != null) {
                         GameHost(game, currentName, onBack = { goBack() })
                     } else {
                         LaunchedEffect(Unit) { goBack() }

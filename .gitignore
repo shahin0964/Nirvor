@@ -12,3 +12,4 @@
 *.aab
 .acside/
 .kotlin/
+google-services.json

@@ -82,6 +82,9 @@ import com.nirvor.app.ui.ledger.InstallmentScreen
 import com.nirvor.app.tools.ToolId
 import com.nirvor.app.ui.tools.ToolBoxScreen
 import com.nirvor.app.ui.tools.ToolHost
+import com.nirvor.app.games.GameId
+import com.nirvor.app.ui.games.GameHost
+import com.nirvor.app.ui.games.GameHubScreen
 import com.nirvor.app.ui.islamic.IslamicHost
 import com.nirvor.app.ui.islamic.IslamicHubScreen
 import com.nirvor.app.ui.islamic.IslamicTool
@@ -107,6 +110,7 @@ enum class Page {
     Ledger, LedgerPerson, Installment,
     ToolBox, Tool,
     Islamic, IslamicItem,
+    GameHub, Game,
     Backup,
 }
 
@@ -148,6 +152,8 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
     var toolName by rememberSaveable { mutableStateOf("") }
     // Islamic Tools: the tool that is open.
     var islamicName by rememberSaveable { mutableStateOf("") }
+    // Game Hub: the game that is open.
+    var gameName by rememberSaveable { mutableStateOf("") }
     val skyClock = remember { SkyClock() }
     var headerDark by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(DrawerValue.Closed)
@@ -318,6 +324,7 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                         onLedger = { openPage(Page.Ledger) },
                         onTools = { openPage(Page.ToolBox) },
                         onIslamic = { openPage(Page.Islamic) },
+                        onGames = { openPage(Page.GameHub) },
                         onReminders = { openPage(Page.Reminders) },
                         onHabits = { openPage(Page.Habits) },
                         onNotes = { openPage(Page.Notes) },
@@ -405,6 +412,23 @@ fun NirvorRoot(vm: MainViewModel = viewModel()) {
                             onOpen = { islamicName = (stack + it.name).joinToString(",") },
                             onLocation = { openPage(Page.WeatherSettings) },
                         )
+                    } else {
+                        LaunchedEffect(Unit) { goBack() }
+                    }
+                }
+
+                Page.GameHub -> GameHubScreen(
+                    onBack = { goBack() },
+                    onOpen = {
+                        gameName = it.name
+                        openPage(Page.Game)
+                    },
+                )
+
+                Page.Game -> {
+                    val game = GameId.of(gameName)
+                    if (game != null && game.ready) {
+                        GameHost(game, currentName, onBack = { goBack() })
                     } else {
                         LaunchedEffect(Unit) { goBack() }
                     }
